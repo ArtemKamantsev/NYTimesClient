@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="single">
+        <item
+            android:title="all-sections" />
+        <item
+         android:title="Arts" />
+        <item
+            android:title="Automobiles" />
+        <item
+            android:title="Blogs" />
+        <item
+            android:title="Books" />
+        <item
+            android:title="Business Day" />
+        <item
+            android:title="Education" />
+        <item
+            android:title="Fashion &amp; Style" />
+        <item
+            android:title="Food" />
+        <item
+            android:title="Health" />
+        <item
+            android:title="Job Market" />
+        <item
+            android:title="Magazine" />
+        <item
+            android:title="Membercenter" />
+        <item
+            android:title="Movies" />
+        <item
+            android:title="Multimedia" />
+        <item
+            android:title="NYT Now" />
+        <item
+            android:title="Obituaries" />
+        <item
+            android:title="Open" />
+        <item
+            android:title="Opinion" />
+        <item
+            android:title="Public Editor" />
+        <item
+            android:title="Real Estate" />
+        <item
+            android:title="Science" />
+        <item
+            android:title="Sports" />
+        <item
+            android:title="Style" />
+        <item
+            android:title="Sunday Review" />
+        <item
+            android:title="T Magazine" />
+        <item
+            android:title="Technology" />
+        <item
+            android:title="The Upshot" />
+        <item
+            android:title="Theater" />
+        <item
+            android:title="Times Insider" />
+        <item
+            android:title="Today’s Paper" />
+        <item
+            android:title="Travel" />
+        <item
+            android:title="U.S." />
+        <item
+            android:title="World" />
+        <item
+            android:title="Your Money" />
+    </group>
+</menu>
