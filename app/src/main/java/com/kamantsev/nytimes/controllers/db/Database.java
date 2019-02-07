@@ -12,7 +12,7 @@ import com.kamantsev.nytimes.models.request_model.MediaMetadata;
 
 @android.arch.persistence.room.Database(entities = {AbstractResult.class, Media.class, MediaMetadata.class},
                                         version = 1, exportSchema = false)
-@TypeConverters({StringListTypeConverter.class})
+@TypeConverters({StringListTypeConverter.class, ObjectTypeConverter.class})
 public abstract class Database extends RoomDatabase {
 
     private static final Object LOCK = new Object();

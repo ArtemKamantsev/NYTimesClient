@@ -1,6 +1,7 @@
 package com.kamantsev.nytimes.controllers;
 
 import android.os.Environment;
+import android.util.Log;
 
 import com.kamantsev.nytimes.controllers.db.Database;
 import com.kamantsev.nytimes.controllers.db.MediaMetadataDao;
@@ -13,9 +14,14 @@ import com.kamantsev.nytimes.models.request_model.MediaMetadata;
 import com.kamantsev.nytimes.models.request_model.Media;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
+
+import javax.net.ssl.HttpsURLConnection;
 
 //Клас, що працює з базою даних та локальним сховищем даних
 class DeviceStorageDataProvider {
@@ -28,7 +34,6 @@ class DeviceStorageDataProvider {
                     |_Article.html,... - файли певної статті
     */
 
-    private static final String defaultFolder = "no_date";//Файли зберігаються у цю папку, якщо шлях до них на сервері не містить дати
     private static final String baseFilePath;//шлях до папки файлів додатку
 
     private static final ResultDao resultDao;
@@ -36,43 +41,63 @@ class DeviceStorageDataProvider {
     private static final MediaMetadataDao metadataDao;
 
     static {
-        baseFilePath = Environment.getExternalStorageDirectory().getPath() + File.separator + "NewYorkTimes";
+        baseFilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "NewYorkTimes";
         Database database = Database.getInstance(DataManager.getContext());
         resultDao = database.getResultDao();
         mediumDao = database.getMediumDao();
         metadataDao = database.getMetadataDao();
     }
 
-    static void loadFavorite() {//Завантаження даних категорії "Favorite"
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+    static synchronized void loadFavorite() {//Завантаження даних категорії "Favorite"
+        List<Article> articles = new LinkedList<>();
 
-                List<Article> articles = new LinkedList<>();
+        List<AbstractResult> results = resultDao.loadAllResults();
 
-                List<AbstractResult> results = resultDao.loadAllResults();
+        for (AbstractResult result : results) {
+            List<Media> mediaList = mediumDao.getMediumsForResult(result.getId());
 
-                for (AbstractResult result : results) {
-                    List<Media> mediaList = mediumDao.getMediumsForResult(result.getId());
-
-                    for (Media media : mediaList) {
-                        media.setMediaMetadata(
-                                metadataDao.getMetadataForMedium(media.getId()));
-                    }
-
-                    result.setMedia(mediaList);
-
-                    Article article = new Article(result, Category.FAVORITE);
-                    articles.add(article);
-                }
-
-                DataManager.setCategory(Category.FAVORITE, articles);
-
+            for (Media media : mediaList) {
+                media.setMediaMetadata(
+                        metadataDao.getMetadataForMedium(media.getId()));
             }
-        }).start();
+
+            result.setMedia(mediaList);
+
+            Article article = new Article(result, Category.FAVORITE);
+            if(checkFileExist(getPath(article))){//this check will remove redundant directories
+                articles.add(article);
+            }else{
+                //if user has removed file
+                deleteFromDataBase(article);
+            }
+        }
+
+        DataManager.setFavorite(articles);
     }
 
-    static void saveInDataBase(Article article) {//Додаємо інформацію про статтю до бази даних
+    static synchronized boolean saveArticle(Article article){
+        String url = article.getArticleExtra().getUrl();
+        String path = getPath(article);
+        if(downloadFile(url, path)) {
+            article.getArticleExtra().setPath("file://"+path);
+            saveToDataBase(article);
+            return true;
+        }
+        return false;
+    }
+
+    static synchronized boolean deleteArticle(Article article){
+        String path = getPath(article);
+        if(deleteFile(path)) {
+            deleteFromDataBase(article);
+            article.getArticleExtra().setPath(null);
+            return true;
+        }
+        return true;
+    }
+
+    //Database
+    private static void saveToDataBase(Article article) {//Додаємо інформацію про статтю до бази даних
 
         resultDao.insertResult(article.getArticleExtra());
 
@@ -87,53 +112,85 @@ class DeviceStorageDataProvider {
         }
     }
 
-    static void deleteFromDataBase(Article article) {
+    private static void deleteFromDataBase(Article article) {
         //Видаляємо запис про статтю з бази даних. Каскадно видаляться зв'язані дані
         resultDao.deleteResult(article.getArticleExtra());
     }
 
+    //File system
+    private static boolean downloadFile(String sUrl, String path){
+        boolean isDownloaded=false;
+        if(isExternalStorageWritable()){
+            try {
+                FileOutputStream os = null;
+                InputStream is = null;
+                try {
+                    makeFolders(path);
+                    os = new FileOutputStream(path);
+                    URL url = new URL(sUrl);
+                    HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+                    connection.connect();
+                    is = connection.getInputStream();
+                    int temp;
+                    while ((temp = is.read()) != -1)
+                        os.write(temp);
 
-    //Видалення вважається успішним, якщо видалена уся папка файлу, проте не обов'язково уся категорія
-    static boolean deleteFile(String destPath) {
+                    isDownloaded = true;
+                } finally {
+                    if (os != null) {
+                        os.flush();
+                        os.close();
+                    }
+                    if (is != null) {
+                        is.close();
+                    }
+                }
+            } catch (IOException e) {
+                Log.e("downloadFile", e.toString());
+            }
+        }
+        return isDownloaded;
+    }
+
+    private static boolean deleteFile(String path){
         boolean isSucceed = false;
         if (isExternalStorageWritable()) {
-            /*String path=getFullPath(destPath);
-            File file = new File(path);
-            isSucceed = file.delete();//видаляємо сам файл
-            path=path.substring(0,path.lastIndexOf('/'));//шлях до папки файлу
-            file=new File(path);
-            if(file.list().length==0){//якщо немає інних файлів
-                isSucceed&=file.delete();//видаляємо папку статті
-                path=path.substring(0,path.lastIndexOf('/'));//шлях до папки певної дати
+            File file;
+            for(int i=0;i<3;i++){
+                //i==0 - removeFromFavorite article's folder
+                //i==1 - removeFromFavorite date folder
                 file=new File(path);
-                if(file.list().length==0)//якщо більше немає статей певної дати
-                   file.delete();//видаляємо цю папку певної дати
-            }*/
+                if(file.exists() && (file.list() == null || file.list().length==0)) {
+                    isSucceed = file.delete();
+                    path=path.substring(0,path.lastIndexOf('/'));
+                }
+            }
         }
         return isSucceed;
     }
 
+
+    private static void makeFolders(String path){
+        File folders = new File(path.substring(0,path.lastIndexOf('/')));
+        if(!folders.exists()){
+            folders.mkdirs();
+        }
+    }
+
     private static String getPath(Article article) {
         String res = baseFilePath + File.separator + article.getArticleExtra().getPublishedDate()
-                + article.getArticleExtra().getTitle();
+                    + File.separator + article.getArticleExtra().getTitle()
+                    + File.separator + article.getArticleExtra().getTitle() + ".html";
         return res;
     }
 
-    private static boolean isExternalStorageWritable() {//Чи можливий запис у файлову систему
-        String state = Environment.getExternalStorageState();
-        if (Environment.MEDIA_MOUNTED.equals(state)) {
-            return true;
-        }
-        return false;
-    }
-
-    private static boolean checkFileExist(String idPath) {//чи наявний файл
+    private static boolean checkFileExist(String idPath) {
         File file = new File(idPath);
         if (file.exists())
             return true;
         else {
-            //якщо фалу не існує, то перевірка створить все одно папки, що ведуть до нього, згідно зі шляхом
             try {
+                //якщо фалу не існує, то перевірка створить все одно папки, що ведуть до нього, згідно зі шляхом
                 //тому створюємо і видаляємо файл, що не існував а також папки, що ведуть до нього
                 file.createNewFile();
                 deleteFile(idPath);
@@ -141,5 +198,13 @@ class DeviceStorageDataProvider {
             }
             return false;
         }
+    }
+
+    private static boolean isExternalStorageWritable() {
+        String state = Environment.getExternalStorageState();
+        if (Environment.MEDIA_MOUNTED.equals(state)) {
+            return true;
+        }
+        return false;
     }
 }

@@ -1,20 +1,17 @@
 package com.kamantsev.nytimes.views;
 
-import android.app.ActionBar;
+import android.os.Bundle;
 import android.support.design.widget.NavigationView;
 import android.support.design.widget.TabLayout;
-import android.support.v4.app.FragmentTransaction;
 import android.support.v4.view.ViewPager;
 import android.support.v4.widget.DrawerLayout;
-import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 
-import com.kamantsev.nytimes.controllers.DataManager;
 import com.kamantsev.nytimes.R;
-import com.kamantsev.nytimes.models.Article;
+import com.kamantsev.nytimes.controllers.DataManager;
 import com.kamantsev.nytimes.models.Category;
 
 import java.util.HashMap;
@@ -27,14 +24,9 @@ public class MainActivity extends AppCompatActivity {
     private DrawerLayout drawerLayout;
     private ViewPager mViewPager;
 
-    //параметри написів
-    private static final int tabHeadersSize=10;
-
-
     private int statusIconId;//ID картинки, що мусить наразі бути іконкою статусу
     private MenuItem statusIcon;//іконка статусу
     private Map<String,String> inconsistencies;//список неспівпадінь у імені категорії у меню та у запиті
-    private String actualSection;//поточна обрана секція
 
     {
         statusIconId=R.drawable.loading;
@@ -44,6 +36,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        DataManager.initialize(getApplicationContext());//початкова ініціацізація і завантаження даних з бази
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -58,8 +52,6 @@ public class MainActivity extends AppCompatActivity {
 
         TabLayout tabLayout = findViewById(R.id.tab_layout);
         tabLayout.setupWithViewPager(mViewPager);
-
-        DataManager.initialize(getApplicationContext());//початкова ініціацізація і завантаження даних з мережі
     }
 
     private void setupViewPager(){
@@ -94,7 +86,6 @@ public class MainActivity extends AppCompatActivity {
                         if(inconsistencies.containsKey(section))
                             section=inconsistencies.get(section);
 
-                        actualSection=section;
                         //DataManager.loadData(section);
 
                         return true;

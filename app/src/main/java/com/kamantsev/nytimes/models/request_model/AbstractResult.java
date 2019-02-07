@@ -50,8 +50,8 @@ public class AbstractResult {
     private String source;
     @SerializedName("asset_id")
     @Expose
-    private Integer assetId;
-    @SerializedName("des_facet")
+    private Long assetId;
+    /*@SerializedName("des_facet")
     @Expose
     private List<String> desFacet = null;
     @SerializedName("org_facet")
@@ -62,7 +62,20 @@ public class AbstractResult {
     private List<String> perFacet = null;
     @SerializedName("geo_facet")
     @Expose
-    private String geoFacet;
+    private String geoFacet;*/
+    //TODO change this solution in future (problem was: in json can be string[] or "")
+    @SerializedName("des_facet")
+    @Expose
+    private Object desFacet;
+    @SerializedName("org_facet")
+    @Expose
+    private Object orgFacet;
+    @SerializedName("per_facet")
+    @Expose
+    private Object perFacet;
+    @SerializedName("geo_facet")
+    @Expose
+    private Object geoFacet;
     @Ignore
     @SerializedName("media")
     @Expose
@@ -71,6 +84,15 @@ public class AbstractResult {
     @Expose
     private String uri;
 
+    private String path;
+
+    public String getPath() {
+        return path == null? url: path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
 
     public void setId(Long id) {
         this.id = id;
@@ -120,24 +142,8 @@ public class AbstractResult {
         this.source = source;
     }
 
-    public void setAssetId(Integer assetId) {
+    public void setAssetId(Long assetId) {
         this.assetId = assetId;
-    }
-
-    public void setDesFacet(List<String> desFacet) {
-        this.desFacet = desFacet;
-    }
-
-    public void setOrgFacet(List<String> orgFacet) {
-        this.orgFacet = orgFacet;
-    }
-
-    public void setPerFacet(List<String> perFacet) {
-        this.perFacet = perFacet;
-    }
-
-    public void setGeoFacet(String geoFacet) {
-        this.geoFacet = geoFacet;
     }
 
     public void setMedia(List<Media> media){
@@ -192,24 +198,8 @@ public class AbstractResult {
         return id;
     }
 
-    public Integer getAssetId() {
+    public Long getAssetId() {
         return assetId;
-    }
-
-    public List<String> getDesFacet() {
-        return desFacet;
-    }
-
-    public List<String> getOrgFacet() {
-        return orgFacet;
-    }
-
-    public List<String> getPerFacet() {
-        return perFacet;
-    }
-
-    public String getGeoFacet() {
-        return geoFacet;
     }
 
     public List<Media> getMedia() {
@@ -218,5 +208,37 @@ public class AbstractResult {
 
     public String getUri() {
         return uri;
+    }
+
+    public Object getDesFacet() {
+        return desFacet;
+    }
+
+    public void setDesFacet(Object desFacet) {
+        this.desFacet = desFacet;
+    }
+
+    public Object getOrgFacet() {
+        return orgFacet;
+    }
+
+    public void setOrgFacet(Object orgFacet) {
+        this.orgFacet = orgFacet;
+    }
+
+    public Object getPerFacet() {
+        return perFacet;
+    }
+
+    public void setPerFacet(Object perFacet) {
+        this.perFacet = perFacet;
+    }
+
+    public Object getGeoFacet() {
+        return geoFacet;
+    }
+
+    public void setGeoFacet(Object geoFacet) {
+        this.geoFacet = geoFacet;
     }
 }

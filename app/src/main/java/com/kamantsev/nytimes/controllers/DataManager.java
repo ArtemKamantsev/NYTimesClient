@@ -1,17 +1,14 @@
 package com.kamantsev.nytimes.controllers;
 
 import android.content.Context;
+import android.os.Handler;
 import android.util.Log;
 import android.widget.ImageView;
-import android.widget.Toast;
 
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.security.ProviderInstaller;
 import com.kamantsev.nytimes.models.Article;
-import com.kamantsev.nytimes.models.request_model.AbstractResult;
-import com.kamantsev.nytimes.models.request_model.NYTResponse;
-import com.kamantsev.nytimes.models.request_model.ResultEmailed;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,8 +21,13 @@ import com.kamantsev.nytimes.models.Category;
 
 public class DataManager {
 
+    private static final String DOWNLOAD_FAILED = "Downloading failed. See logs for more details.",
+            DELETE_FAILED = "Removing file failed. See logs for more details.";
+
     //Розділ, обраний за замовчуванням
     private static final String defaultSection = "all-sections";
+
+    private static Handler UIHandler;//For performing actions on UI thread
 
     //У додатку об'єкти статей існують у єдиному екземплярі
     private static List<Article>[] pages;//список статей за категоріями
@@ -34,7 +36,6 @@ public class DataManager {
     private static Context context;//Контекст додатку, необхідний для деяких операцій
 
     private static Set<OnDataChangeListener>[] dataChangeListeners;
-
 
     static {
         int tabsCount = Category.values().length;
@@ -51,16 +52,16 @@ public class DataManager {
     //Service
     public static void initialize(Context context) {
         DataManager.context = context;
+        UIHandler = new Handler();
 
-        try {
-            ProviderInstaller.installIfNeeded(context);
-        } catch (GooglePlayServicesRepairableException e) {
-            Log.e("DataManager", "static initializer", e);
-        } catch (GooglePlayServicesNotAvailableException e) {
-            Log.e("DataManager", "static initializer", e);
-        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                //завантажуємо категорію "Favorite"
+                DeviceStorageDataProvider.loadFavorite();
+            }
+        }).start();
 
-        DeviceStorageDataProvider.loadFavorite();//завантажуємо категорію "Favorite"
     }
 
     public static Context getContext() {
@@ -69,6 +70,18 @@ public class DataManager {
 
     //Network
     public static void loadCategory(Category category) {
+        try {
+            if(context == null){
+                Log.e("DataManager", "null context");
+            }
+            //Fix android protocols' bug in old versions
+            ProviderInstaller.installIfNeeded(context);
+        } catch (GooglePlayServicesRepairableException e) {
+            Log.e("DataManager", "static initializer", e);
+        } catch (GooglePlayServicesNotAvailableException e) {
+            Log.e("DataManager", "static initializer", e);
+        }
+
         NetworkDataProvider.requestData(category);
     }
 
@@ -91,7 +104,7 @@ public class DataManager {
                 uniqueArticles.put(resId, article);
             } else {
                 article = uniqueArticles.get(resId);
-                if(!article.isBelong(category)){
+                if (!article.isBelong(category)) {
                     article.addCategory(category);
                 }
             }
@@ -100,8 +113,31 @@ public class DataManager {
         notifyOnDataChangeListener(category);
     }
 
+    static void setFavorite(List<Article> articles) {
+        for (Article article : articles) {
+            Long resId = article.getArticleExtra().getId();//Long required for keys comparison
+            if (uniqueArticles.containsKey(resId)) {
+                //copy old article's categories
+                Article oldArticle = uniqueArticles.get(resId);
+                for (Category category : Category.values()) {
+                    if (oldArticle.isBelong(category)) {
+                        article.addCategory(category);
+                        pages[category.ordinal()].add(article);
+                    }
+                }
+            }
+            uniqueArticles.put(resId, article);
+            pages[Category.FAVORITE.ordinal()].add(article);
+        }
+        notifyOnDataChangeListener(Category.FAVORITE);
+    }
+
     public static Article getArticle(Category category, int index) {
         return pages[category.ordinal()].get(index);
+    }
+
+    public static Article getArticle(long id) {
+        return uniqueArticles.get(id);
     }
 
     public static int getArticleCount(Category category) {
@@ -109,74 +145,83 @@ public class DataManager {
     }
 
 
-
     //Data listeners
-    public static void registedOnDataChangeListener(Category category, OnDataChangeListener listener){
+    public static void registerOnDataChangeListener(Category category, OnDataChangeListener listener) {
         dataChangeListeners[category.ordinal()].add(listener);
     }
 
-    public static void unregisterOnDataChangeListener(Category category, OnDataChangeListener listener){
+    public static void unregisterOnDataChangeListener(Category category, OnDataChangeListener listener) {
         dataChangeListeners[category.ordinal()].remove(listener);
     }
 
-    private static void notifyOnDataChangeListener(Category category){
-        for(OnDataChangeListener listener : dataChangeListeners[category.ordinal()]){
+    private static void notifyOnDataChangeListener(Category category) {
+        for (OnDataChangeListener listener : dataChangeListeners[category.ordinal()]) {
             listener.onContentChanged();
         }
     }
 
 
     //Files operations
-    public static synchronized boolean addToFavorite(Article article) {//Додаємо статтю до категорії "Favorite"
-        //true - якщо було додано до обраного, false - при помилці скачування/збереження даних або якщо стаття вже обрана
-        boolean isSucceed = false;
-
+    public static void addToFavorite(final Article article, final FileOperationCallback callback) {
         if (!article.isBelong(Category.FAVORITE)) {
-
-            isSucceed = downloadFavorite(article);
-
-            //Якщо стаття успішно збережена, відзначаємо її як обрану
-            if (isSucceed) {
-                article.addCategory(Category.FAVORITE);
-                pages[Category.FAVORITE.ordinal()].add(article);
-            }
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    if (DeviceStorageDataProvider.saveArticle(article)) {
+                        article.addCategory(Category.FAVORITE);
+                        pages[Category.FAVORITE.ordinal()].add(article);
+                        runOnUISucceed(callback);
+                    } else {
+                        runOnUIFailure(callback, DOWNLOAD_FAILED);
+                    }
+                }
+            }).start();
         }
-        return isSucceed;
     }
 
-    public static synchronized boolean removeFromFavorite(Article article) {//Видаляємо статтю з категорії "Favorite"
-        boolean isSucceed = false;
-
+    public static void removeFromFavorite(final Article article, final FileOperationCallback callback) {
         if (article.isBelong(Category.FAVORITE)) {
-            DeviceStorageDataProvider.deleteFromDataBase(article);
-
-                /*if (!DeviceStorageDataProvider.deleteFile(article)) {
-                    Toast.makeText(getContext(), "File isn't deleted", Toast.LENGTH_LONG);//сповіщуємо користувача, що файл не вдалось видалити
-                }*/
-
-                //Навіть якщо файл не видалено із системи, то для додатку його вже не існує.
-                article.unfavorite();
-                pages[Category.FAVORITE.ordinal()].remove(article);
-                isSucceed = true;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    if (DeviceStorageDataProvider.deleteArticle(article)) {
+                        article.unfavorite();
+                        pages[Category.FAVORITE.ordinal()].remove(article);
+                        runOnUISucceed(callback);
+                    } else {
+                        runOnUIFailure(callback, DELETE_FAILED);
+                    }
+                }
+            }).start();
         }
-
-        return isSucceed;
     }
 
-    private static synchronized boolean downloadFavorite(Article article) {
-        boolean isSucceed = false;
-        //Намагаємось зберігти файл на пам'ять девайсу
-       /* if (NetworkDataProvider.downloadFile(article.getArticleExtra().getUrl(), article)) {
-            if (DeviceStorageDataProvider.saveInDataBase(article))//Намагаємось записати інформацію про статтю до бази даних
-                isSucceed = true;
-        }*/
-
-        return isSucceed;
+    private static void runOnUIFailure(final FileOperationCallback callback, final String err) {
+        UIHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                callback.onFailure(err);
+            }
+        });
     }
 
+    private static void runOnUISucceed(final FileOperationCallback callback) {
+        UIHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                callback.onSucceed();
+            }
+        });
+    }
 
     //Inners
     public interface OnDataChangeListener {
         void onContentChanged();
+    }
+
+    public interface FileOperationCallback {
+        void onSucceed();
+
+        void onFailure(String mesage);
     }
 }

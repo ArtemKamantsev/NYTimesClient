@@ -1,6 +1,7 @@
 package com.kamantsev.nytimes.views;
 
 import android.content.Context;
+import android.content.Intent;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
@@ -36,7 +37,7 @@ class ContentAdapter extends RecyclerView.Adapter<ContentAdapter.ContentHolder> 
 
     @Override
     public void onBindViewHolder(@NonNull ContentHolder contentHolder, int i) {
-            contentHolder.initialize(DataManager.getArticle(category, i));
+            contentHolder.initialize(i);
     }
 
     @Override
@@ -46,18 +47,30 @@ class ContentAdapter extends RecyclerView.Adapter<ContentAdapter.ContentHolder> 
 
     class ContentHolder extends RecyclerView.ViewHolder{
 
-        TextView tvTitle, tvPreview;
-        ImageView icon;
+        private TextView tvTitle, tvPreview;
+        private ImageView icon;
+        private Article article;
 
-        ContentHolder(View itemView){
+        ContentHolder(final View itemView){
             super(itemView);
 
             tvTitle = itemView.findViewById(R.id.item_tv_title);
             tvPreview = itemView.findViewById(R.id.item_tv_preview);
             icon = itemView.findViewById(R.id.item_iv_icon);
+
+            itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Context context = DataManager.getContext();
+                    Intent intent = ArticleActivity.getIntent(context, article.getArticleExtra().getId());
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                }
+            });
         }
 
-        private void initialize(Article article){
+        private void initialize(int index){
+            article = DataManager.getArticle(category, index);
             tvTitle.setText(article.getArticleExtra().getTitle());
             tvPreview.setText(article.getArticleExtra().getAbstract());
             List<MediaMetadata> mmd=article.getArticleExtra().getMedia().get(0).getMediaMetadata();

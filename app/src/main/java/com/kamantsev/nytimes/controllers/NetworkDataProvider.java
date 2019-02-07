@@ -64,47 +64,6 @@ class NetworkDataProvider {
         }
     }
 
-    //TODO compare this download with android tutorial
-    static boolean downloadFile(String address, String idPath){
-        /*
-        Завантажуємо файл
-        address - адрес файлу у мережі
-        idPath - шлях, відносно папки додатку, за яким необхідно зберегти файл
-         */
-        boolean idDownloaded=false;
-
-       /* String fillPath=DeviceStorageDataProvider.getFullPath(idPath);
-
-        if(fillPath!=null) {
-            try {
-                FileOutputStream os = null;
-                InputStream is = null;
-                try {
-                    os = new FileOutputStream(fillPath);
-                    URL url = new URL(address);
-                    HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-                    connection.connect();
-                    is = connection.getInputStream();
-                    int temp;
-                    while ((temp = is.read()) != -1)
-                        os.write(temp);
-
-                    idDownloaded = true;
-                } finally {
-                    if (os != null)
-                        os.close();
-                    if (is != null)
-                        is.close();
-                }
-            } catch (IOException e) {
-                Toast.makeText(DataManager.getContext(),"Failure on downloading.",Toast.LENGTH_SHORT).show();
-            }
-        }else {
-            Toast.makeText(DataManager.getContext(), "File can't be saved. Storage isn't writable.", Toast.LENGTH_SHORT).show();
-        }*/
-        return idDownloaded;
-    }
-
     static void loadImage(ImageView imageView, String url){
         //Завантажуємо картинки за допомогою бібліотеки Picasso
         Picasso.get()//with(DataManager.getContext())
