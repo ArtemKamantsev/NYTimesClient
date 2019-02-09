@@ -21,57 +21,66 @@ import com.kamantsev.nytimes.R;
 import com.kamantsev.nytimes.controllers.DataManager;
 import com.kamantsev.nytimes.models.Category;
 
-public class ArticleActivity extends AppCompatActivity {
+public class ArticleActivity extends AppCompatActivity implements DataManager.DataLoadingListener {
 
     private static final String ID_KEY = "id";
-    private static final int INDEX_DEFAULT = -1;
+    private static final Long INDEX_DEFAULT = -1L;
 
     //Тексти для вікна підтвердження видалення статті з "Favorite"
-    private static final String alertTitle="Removal confirmation",
-                                alertMessage="This article will be removed from \"Favorite\" tab" +
-                                        " and from device storage. Are you sure you want to remove it?",
-                                alertBtn1="Yes",
-                                alertBtn2="No";
+    private static final String alertTitle = "Removal confirmation",
+            alertMessage = "This article will be removed from \"Favorite\" tab" +
+                    " and from device storage. Are you sure you want to remove it?",
+            alertBtn1 = "Yes",
+            alertBtn2 = "No";
 
     private WebView webView;//контейнер для статті
-    private Article article;//поточна стаття
+    private Long articleID;//поточна стаття
+    private MenuItem itemFavorite;
 
-    public static Intent getIntent(Context context, long articleId){
+    public static Intent getIntent(Context context, long articleId) {
         Intent intent = new Intent(context, ArticleActivity.class);
         intent.putExtra(ID_KEY, articleId);
         return intent;
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState){
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_article);
 
         ActionBar actionBar = getSupportActionBar();
-        if(actionBar != null){
+        if (actionBar != null) {
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
 
         setWebView();
 
-        long articleId = INDEX_DEFAULT;
-        if(savedInstanceState != null){
-            articleId = savedInstanceState.getLong(ID_KEY,INDEX_DEFAULT);
-        }else{
-           articleId = getIntent().getLongExtra(ID_KEY,INDEX_DEFAULT);
+        articleID = INDEX_DEFAULT;
+        if (savedInstanceState != null) {
+            articleID = savedInstanceState.getLong(ID_KEY, INDEX_DEFAULT);
+        } else {
+            articleID = getIntent().getLongExtra(ID_KEY, INDEX_DEFAULT);
         }
-        article = DataManager.getArticle(articleId);
-        if(article != null) {
+
+        if (DataManager.getArticle(articleID) != null) {
             loadContent();
-        }else{
+        } else {
             finish();
         }
+
+        DataManager.registerOnDataChangeListener(Category.FAVORITE, this);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        DataManager.unregisterOnDataChangeListener(Category.FAVORITE, this);
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putLong(ID_KEY, article.getArticleExtra().getId());
+        outState.putLong(ID_KEY, articleID);
     }
 
     @Override
@@ -86,82 +95,84 @@ public class ArticleActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        if(article!=null) {
-            getMenuInflater().inflate(R.menu.article_menu, menu);
-            if (article.isBelong(Category.FAVORITE))
-                menu.findItem(R.id.action_favorite).setIcon(R.drawable.favorite);
-        }
+        getMenuInflater().inflate(R.menu.article_menu, menu);
+        itemFavorite = menu.findItem(R.id.action_favorite);
+        setFavoriteIcon();
+
         return super.onCreateOptionsMenu(menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if(item.getItemId() == android.R.id.home) {
+        if (item.getItemId() == android.R.id.home) {
             finish();
-        }else
-            if (item.getItemId()==R.id.action_favorite) {
-                setFavorite(item);
-            }
+        } else if (item.getItemId() == R.id.action_favorite) {
+            setFavorite();
+        }
         return super.onOptionsItemSelected(item);
     }
 
-    private void setFavorite(final MenuItem item){
+    @Override
+    public void onLoadingSucceed() {
+        setFavoriteIcon();
+        Article article = DataManager.getArticle(articleID);
+        if(article.isBelong(Category.FAVORITE)){
+            showToast("Article saved successfully!");
+        }else{
+            showToast("Article was removed successfully!");
+        }
+    }
+
+    @Override
+    public void onLoadingFailed() {
+        setFavoriteIcon();
+        Article article = DataManager.getArticle(articleID);
+        if(article.isBelong(Category.FAVORITE)){
+            showToast("Article wasn't removed successfully!");
+        }else{
+            showToast("Article wasn't saved!");
+        }
+    }
+
+
+
+    private void setFavorite() {
+        Article article = DataManager.getArticle(articleID);
         if (article.isBelong(Category.FAVORITE)) {//Прибираємо з "Favorite"
             //Відображаємо вікно підтвердження видалення.
-            AlertDialog.Builder alertDialog=new AlertDialog.Builder(this);
+            AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
             alertDialog.setTitle(alertTitle);  // заголовок
             alertDialog.setMessage(alertMessage); // повідомлення
             alertDialog.setPositiveButton(alertBtn1, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int arg1) {
-                    DataManager.removeFromFavorite(article, new DataManager.FileOperationCallback() {
-                        @Override
-                        public void onSucceed() {
-                            item.setIcon(R.drawable.favorite_border);
-                            showToast("Article was removed successfully.");
-                        }
-
-                        @Override
-                        public void onFailure(String message) {
-                            showToast(message);
-                        }
-                    });
+                    DataManager.removeFromFavorite(articleID);
                 }
             });
             alertDialog.setNegativeButton(alertBtn2, null);//нічого не робимо
             alertDialog.setCancelable(true);
             alertDialog.show();
 
-        } else {
+        } else if (!article.isBelong(Category.LOADING)) {
             //Починаємо скачування сторінки
-            item.setIcon(R.drawable.loading);
-            DataManager.addToFavorite(article, new DataManager.FileOperationCallback() {
-                @Override
-                public void onSucceed() {
-                    item.setIcon(R.drawable.favorite);
-                    showToast("Page was saved.");
-                    loadContent();
-                }
-
-                @Override
-                public void onFailure(String mesage) {
-                    item.setIcon(R.drawable.favorite_border);
-                    showToast("Unfortunately page isn't saved.");
-                }
-            });
+            itemFavorite.setIcon(R.drawable.loading);
+            DataManager.addToFavorite(articleID);
         }
     }
 
-    private void setWebView(){
-        webView=findViewById(R.id.web_view);
+    private void setWebView() {
+        webView = findViewById(R.id.web_view);
         WebSettings webSettings = webView.getSettings();
-        webSettings.setLoadsImagesAutomatically(true);
-        webSettings.setJavaScriptEnabled(true);
+
+        //could be uncommented, but will enlarge loading time
+//        webSettings.setLoadsImagesAutomatically(true);
+//        webSettings.setJavaScriptEnabled(true);
+
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_INSET);
-        webView.setWebViewClient(new WebViewClient(){
+        webView.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url){
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 view.loadUrl(url);
-                return super.shouldOverrideUrlLoading(view,url);
+                return super.shouldOverrideUrlLoading(view, url);
             }
 
             @Override
@@ -171,12 +182,25 @@ public class ArticleActivity extends AppCompatActivity {
         });
     }
 
-    private void showToast(String text){
-        Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
+    private void loadContent() {
+        Article article = DataManager.getArticle(articleID);
+        webView.loadUrl(article.getArticleExtra().getPath());
     }
 
-    private void loadContent(){
-        Log.e("loadContent", article.getArticleExtra().getPath());
-        webView.loadUrl(article.getArticleExtra().getPath());
+    private void setFavoriteIcon() {
+        Article article = DataManager.getArticle(articleID);
+        if (itemFavorite != null && article != null) {
+            if (article.isBelong(Category.FAVORITE)) {
+                itemFavorite.setIcon(R.drawable.favorite);
+            } else if (article.isBelong(Category.LOADING)) {
+                itemFavorite.setIcon(R.drawable.loading);
+            } else {
+                itemFavorite.setIcon(R.drawable.favorite_border);
+            }
+        }
+    }
+
+    private void showToast(String text) {
+        Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
     }
 }

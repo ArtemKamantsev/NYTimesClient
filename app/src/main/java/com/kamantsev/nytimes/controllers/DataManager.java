@@ -12,6 +12,7 @@ import com.kamantsev.nytimes.models.Article;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -30,20 +31,20 @@ public class DataManager {
     private static Handler UIHandler;//For performing actions on UI thread
 
     //У додатку об'єкти статей існують у єдиному екземплярі
-    private static List<Article>[] pages;//список статей за категоріями
+    private static List<Long>[] pages;//список індексів статей за категоріями
     private static Map<Long, Article> uniqueArticles;//Список унікальних статей
 
     private static Context context;//Контекст додатку, необхідний для деяких операцій
 
-    private static Set<OnDataChangeListener>[] dataChangeListeners;
+    private static Set<DataLoadingListener>[] dataLoadingListeners;
 
     static {
         int tabsCount = Category.values().length;
         pages = new LinkedList[tabsCount];//переважно додавання або послідовний доступ
-        dataChangeListeners = new HashSet[tabsCount];//найшвидша реалізація. Впорядкування не потрібне
+        dataLoadingListeners = new HashSet[tabsCount];//найшвидша реалізація. Впорядкування не потрібне
         for (int i = 0; i < tabsCount; i++) {
             pages[i] = new LinkedList<>();
-            dataChangeListeners[i] = new HashSet<>();
+            dataLoadingListeners[i] = new HashSet<>();
         }
         uniqueArticles = new HashMap<>();//найшвидша реалізація. Впорядкування не потрібне
     }
@@ -54,14 +55,7 @@ public class DataManager {
         DataManager.context = context;
         UIHandler = new Handler();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                //завантажуємо категорію "Favorite"
-                DeviceStorageDataProvider.loadFavorite();
-            }
-        }).start();
-
+        loadCategory(Category.FAVORITE);
     }
 
     public static Context getContext() {
@@ -69,26 +63,45 @@ public class DataManager {
     }
 
     //Network
-    public static void loadCategory(Category category) {
-        try {
-            if(context == null){
-                Log.e("DataManager", "null context");
+    public static void loadCategory(final Category category) {
+
+        DataLoadingListener listener = new DataLoadingListener() {
+            @Override
+            public void onLoadingSucceed() {
+                notifyOnDataLoadingListener(category, true);
             }
-            //Fix android protocols' bug in old versions
-            ProviderInstaller.installIfNeeded(context);
-        } catch (GooglePlayServicesRepairableException e) {
-            Log.e("DataManager", "static initializer", e);
-        } catch (GooglePlayServicesNotAvailableException e) {
-            Log.e("DataManager", "static initializer", e);
+
+            @Override
+            public void onLoadingFailed() {
+                notifyOnDataLoadingListener(category, false);
+            }
+        };
+
+        if(category == Category.FAVORITE){
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    //Failure on loading favorite isn't expected
+                    DeviceStorageDataProvider.loadFavorite();
+                    notifyOnDataLoadingListener(category, true);
+                }
+            }).start();
+        }else{
+
+            try {
+                if(context == null){
+                    Log.e("DataManager", "null context");
+                }
+                //Fix android protocols' bug in old versions
+                ProviderInstaller.installIfNeeded(context);
+            } catch (GooglePlayServicesRepairableException e) {
+                Log.e("DataManager", "static initializer", e);
+            } catch (GooglePlayServicesNotAvailableException e) {
+                Log.e("DataManager", "static initializer", e);
+            }
+
+            NetworkDataProvider.requestData(category, listener);
         }
-
-        NetworkDataProvider.requestData(category);
-    }
-
-    public static void loadCategories() {
-        loadCategory(Category.EMAILED);
-        loadCategory(Category.SHARED);
-        loadCategory(Category.VIEWED);
     }
 
     public static void loadImage(ImageView imageView, String url) {
@@ -98,42 +111,39 @@ public class DataManager {
 
     //Data modifiers
     static void setCategory(Category category, List<Article> articles) {
+        clearCategory(category);
         for (Article article : articles) {
-            Long resId = article.getArticleExtra().getId();//Long required for keys comparison
-            if (!uniqueArticles.containsKey(resId)) {
-                uniqueArticles.put(resId, article);
+            Long articleID = article.getArticleExtra().getId();//Long required for keys comparison
+            if (uniqueArticles.containsKey(articleID)) {
+                uniqueArticles.get(articleID).addCategory(category);
             } else {
-                article = uniqueArticles.get(resId);
-                if (!article.isBelong(category)) {
-                    article.addCategory(category);
-                }
+                uniqueArticles.put(articleID, article);
             }
-            pages[category.ordinal()].add(article);
+            pages[category.ordinal()].add(articleID);
         }
-        notifyOnDataChangeListener(category);
+        notifyOnDataLoadingListener(category, true);
     }
 
     static void setFavorite(List<Article> articles) {
+        clearCategory(Category.FAVORITE);
         for (Article article : articles) {
-            Long resId = article.getArticleExtra().getId();//Long required for keys comparison
-            if (uniqueArticles.containsKey(resId)) {
-                //copy old article's categories
-                Article oldArticle = uniqueArticles.get(resId);
-                for (Category category : Category.values()) {
-                    if (oldArticle.isBelong(category)) {
-                        article.addCategory(category);
-                        pages[category.ordinal()].add(article);
-                    }
-                }
+            Long articleID = article.getArticleExtra().getId();//Long required for keys comparison
+            if (uniqueArticles.containsKey(articleID)) {
+                Article oldArticle = uniqueArticles.get(articleID);
+                oldArticle.addCategory(Category.FAVORITE);
+                //will add category FAVORITE & local path to files to old article
+                oldArticle.updateData(article);
+            }else {
+                uniqueArticles.put(articleID, article);
             }
-            uniqueArticles.put(resId, article);
-            pages[Category.FAVORITE.ordinal()].add(article);
+            pages[Category.FAVORITE.ordinal()].add(articleID);
         }
-        notifyOnDataChangeListener(Category.FAVORITE);
+        notifyOnDataLoadingListener(Category.FAVORITE, true);
     }
 
     public static Article getArticle(Category category, int index) {
-        return pages[category.ordinal()].get(index);
+        Long key = pages[category.ordinal()].get(index);
+        return uniqueArticles.get(key);
     }
 
     public static Article getArticle(long id) {
@@ -146,82 +156,105 @@ public class DataManager {
 
 
     //Data listeners
-    public static void registerOnDataChangeListener(Category category, OnDataChangeListener listener) {
-        dataChangeListeners[category.ordinal()].add(listener);
+    public static void registerOnDataChangeListener(Category category, DataLoadingListener listener) {
+        dataLoadingListeners[category.ordinal()].add(listener);
     }
 
-    public static void unregisterOnDataChangeListener(Category category, OnDataChangeListener listener) {
-        dataChangeListeners[category.ordinal()].remove(listener);
+    public static void unregisterOnDataChangeListener(Category category, DataLoadingListener listener) {
+        dataLoadingListeners[category.ordinal()].remove(listener);
     }
 
-    private static void notifyOnDataChangeListener(Category category) {
-        for (OnDataChangeListener listener : dataChangeListeners[category.ordinal()]) {
-            listener.onContentChanged();
-        }
+    private static void notifyOnDataLoadingListener(final Category category, final boolean isSucceed) {
+        //most listeners(in fact all) need to update their UI on data change
+        UIHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                for (DataLoadingListener listener : dataLoadingListeners[category.ordinal()]) {
+                    if(isSucceed) {
+                        listener.onLoadingSucceed();
+                    }else{
+                        listener.onLoadingFailed();
+                    }
+                }
+            }
+        });
     }
 
 
     //Files operations
-    public static void addToFavorite(final Article article, final FileOperationCallback callback) {
-        if (!article.isBelong(Category.FAVORITE)) {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    if (DeviceStorageDataProvider.saveArticle(article)) {
-                        article.addCategory(Category.FAVORITE);
-                        pages[Category.FAVORITE.ordinal()].add(article);
-                        runOnUISucceed(callback);
-                    } else {
-                        runOnUIFailure(callback, DOWNLOAD_FAILED);
-                    }
+    public static void addToFavorite(Long articleID) {
+        final Article article = getArticle(articleID);
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                article.addCategory(Category.LOADING);
+                if (DeviceStorageDataProvider.saveArticle(article)) {
+                    article.addCategory(Category.FAVORITE);
+                    pages[Category.FAVORITE.ordinal()].add(article.getArticleExtra().getId());
+                    notifyOnDataLoadingListener(Category.FAVORITE, true);
+                } else {
+                    notifyOnDataLoadingListener(Category.FAVORITE, false);
                 }
-            }).start();
+                article.removeCategory(Category.LOADING);
+            }
+        }).start();
+    }
+
+    public static void removeFromFavorite(Long articleID) {
+        final Article article = getArticle(articleID);
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if (DeviceStorageDataProvider.deleteArticle(article)) {
+                    removeArticle(Category.FAVORITE, article);
+                    notifyOnDataLoadingListener(Category.FAVORITE, true);
+                } else {
+                    notifyOnDataLoadingListener(Category.FAVORITE, false);
+                }
+            }
+        }).start();
+    }
+
+
+
+    private static void clearCategory(Category category){
+        Iterator<Long> iterator = pages[category.ordinal()].iterator();
+        while(iterator.hasNext()){
+            Long id = iterator.next();
+            Article article = uniqueArticles.get(id);
+            removeArticle(category, article, iterator);
         }
     }
 
-    public static void removeFromFavorite(final Article article, final FileOperationCallback callback) {
-        if (article.isBelong(Category.FAVORITE)) {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    if (DeviceStorageDataProvider.deleteArticle(article)) {
-                        article.unfavorite();
-                        pages[Category.FAVORITE.ordinal()].remove(article);
-                        runOnUISucceed(callback);
-                    } else {
-                        runOnUIFailure(callback, DELETE_FAILED);
-                    }
-                }
-            }).start();
+    private static void removeArticle(Category category, Article article, Iterator<Long> iterator){
+        iterator.remove();
+        article.removeCategory(category);
+        if(article.getCategoriesCount() == 0){
+            uniqueArticles.remove(article.getArticleExtra().getId());
         }
     }
 
-    private static void runOnUIFailure(final FileOperationCallback callback, final String err) {
-        UIHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                callback.onFailure(err);
-            }
-        });
+    private static void removeArticle(Category category, Article article){
+        pages[category.ordinal()].remove(article.getArticleExtra().getId());
+        article.removeCategory(category);
+        if(article.getCategoriesCount() == 0){
+            uniqueArticles.remove(article.getArticleExtra().getId());
+        }
     }
 
-    private static void runOnUISucceed(final FileOperationCallback callback) {
-        UIHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                callback.onSucceed();
-            }
-        });
-    }
+
 
     //Inners
-    public interface OnDataChangeListener {
-        void onContentChanged();
+    public interface DataLoadingListener {
+        void onLoadingSucceed();
+        void onLoadingFailed();
     }
 
     public interface FileOperationCallback {
         void onSucceed();
 
-        void onFailure(String mesage);
+        void onFailure(String message);
     }
 }

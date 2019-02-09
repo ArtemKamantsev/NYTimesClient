@@ -23,6 +23,8 @@ import java.util.List;
 
 import javax.net.ssl.HttpsURLConnection;
 
+import static com.kamantsev.nytimes.controllers.DataManager.DataLoadingListener;
+
 //Клас, що працює з базою даних та локальним сховищем даних
 class DeviceStorageDataProvider {
 
@@ -49,6 +51,7 @@ class DeviceStorageDataProvider {
     }
 
     static synchronized void loadFavorite() {//Завантаження даних категорії "Favorite"
+
         List<Article> articles = new LinkedList<>();
 
         List<AbstractResult> results = resultDao.loadAllResults();
@@ -75,25 +78,31 @@ class DeviceStorageDataProvider {
         DataManager.setFavorite(articles);
     }
 
-    static synchronized boolean saveArticle(Article article){
-        String url = article.getArticleExtra().getUrl();
-        String path = getPath(article);
-        if(downloadFile(url, path)) {
-            article.getArticleExtra().setPath("file://"+path);
-            saveToDataBase(article);
-            return true;
+    static boolean saveArticle(Article article){
+        //blocks article's information of change
+        synchronized(article) {
+            String url = article.getArticleExtra().getUrl();
+            String path = getPath(article);
+            if (downloadFile(url, path)) {
+                article.getArticleExtra().setPath("file://" + path);
+                saveToDataBase(article);
+                return true;
+            }
+            return false;
         }
-        return false;
     }
 
-    static synchronized boolean deleteArticle(Article article){
-        String path = getPath(article);
-        if(deleteFile(path)) {
-            deleteFromDataBase(article);
-            article.getArticleExtra().setPath(null);
+    static boolean deleteArticle(Article article){
+        //blocks article's information of change
+        synchronized (article) {
+            String path = getPath(article);
+            if (deleteFile(path)) {
+                deleteFromDataBase(article);
+                article.getArticleExtra().setPath(null);
+                return true;
+            }
             return true;
         }
-        return true;
     }
 
     //Database
@@ -154,16 +163,17 @@ class DeviceStorageDataProvider {
 
     private static boolean deleteFile(String path){
         boolean isSucceed = false;
+        Log.e("path:", path);
         if (isExternalStorageWritable()) {
             File file;
+            Log.e("path:", path);
             for(int i=0;i<3;i++){
-                //i==0 - removeFromFavorite article's folder
-                //i==1 - removeFromFavorite date folder
                 file=new File(path);
+                Log.e("path", path);
                 if(file.exists() && (file.list() == null || file.list().length==0)) {
                     isSucceed = file.delete();
-                    path=path.substring(0,path.lastIndexOf('/'));
                 }
+                path=path.substring(0,path.lastIndexOf('/'));
             }
         }
         return isSucceed;
@@ -184,18 +194,12 @@ class DeviceStorageDataProvider {
         return res;
     }
 
-    private static boolean checkFileExist(String idPath) {
-        File file = new File(idPath);
-        if (file.exists())
+    private static boolean checkFileExist(String path) {
+        Log.e("DataProvider","checkFileExist");
+        File file = new File(path);
+        if (file.exists()) {
             return true;
-        else {
-            try {
-                //якщо фалу не існує, то перевірка створить все одно папки, що ведуть до нього, згідно зі шляхом
-                //тому створюємо і видаляємо файл, що не існував а також папки, що ведуть до нього
-                file.createNewFile();
-                deleteFile(idPath);
-            } catch (IOException e) {
-            }
+        }else {
             return false;
         }
     }

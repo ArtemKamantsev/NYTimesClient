@@ -4,48 +4,31 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.kamantsev.nytimes.R;
 import com.kamantsev.nytimes.controllers.DataManager;
 import com.kamantsev.nytimes.models.Category;
 
-public class ContentListFragment extends Fragment implements DataManager.OnDataChangeListener{
+public class ContentListFragment extends Fragment
+        implements DataManager.DataLoadingListener,
+        SwipeRefreshLayout.OnRefreshListener {
 
     private static final String ARG_CATEGORY = "category";
 
     private Category category;
     private RecyclerView recyclerView;
+    private SwipeRefreshLayout swipeRefreshLayout;
     private ImageView ivPlaceholder;
     private ContentAdapter adapter;
-
-    @Override
-    public void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        if(getArguments()!=null){
-            String sCategory = getArguments().getString(ARG_CATEGORY);
-            this.category = Category.valueOf(sCategory);
-
-            adapter = new ContentAdapter(category);
-
-            if(category != Category.FAVORITE) {
-                DataManager.loadCategory(category);
-            }
-        }
-    }
-
-
-    @Override
-    public void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putString(ARG_CATEGORY, category.toString());
-    }
 
     public static ContentListFragment newInstance(Category category) {
         ContentListFragment fragment = new ContentListFragment();
@@ -56,9 +39,15 @@ public class ContentListFragment extends Fragment implements DataManager.OnDataC
     }
 
     @Override
-    public void onStart() {
-        super.onStart();
-        DataManager.registerOnDataChangeListener(category, this);
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        if(getArguments()!=null){
+            String sCategory = getArguments().getString(ARG_CATEGORY);
+            this.category = Category.valueOf(sCategory);
+
+            adapter = new ContentAdapter(category);
+        }
     }
 
     @Override
@@ -68,18 +57,35 @@ public class ContentListFragment extends Fragment implements DataManager.OnDataC
         // Inflate the layout for this fragment
         return inflater.inflate(R.layout.fragment_content_list, container, false);
     }
-
     @Override
     public void onActivityCreated(@Nullable Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
-        recyclerView = getView().findViewById(R.id.rv_content);
-        ivPlaceholder = getView().findViewById(R.id.iv_placeholder);
+        View rootView = getView();
+        recyclerView = rootView.findViewById(R.id.rv_content);
+        ivPlaceholder = rootView.findViewById(R.id.iv_placeholder);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
         recyclerView.setHasFixedSize(true);
         recyclerView.setAdapter(adapter);
 
+        swipeRefreshLayout = rootView.findViewById(R.id.srl_content);
+        swipeRefreshLayout.setOnRefreshListener(this);
+        swipeRefreshLayout.post(new Runnable() {
+            @Override
+            public void run() {
+                swipeRefreshLayout.setRefreshing(true);
+                initiateDataLoading();
+            }
+        });
+
+        initView();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        DataManager.registerOnDataChangeListener(category, this);
         initView();
     }
 
@@ -90,8 +96,25 @@ public class ContentListFragment extends Fragment implements DataManager.OnDataC
     }
 
     @Override
-    public void onContentChanged() {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(ARG_CATEGORY, category.toString());
+    }
+
+    @Override
+    public void onRefresh() {
+        initiateDataLoading();
+    }
+
+    @Override
+    public void onLoadingSucceed() {
+        swipeRefreshLayout.setRefreshing(false);
         initView();
+    }
+
+    @Override
+    public void onLoadingFailed() {
+        swipeRefreshLayout.setRefreshing(false);
     }
 
     private void initView(){
@@ -103,5 +126,9 @@ public class ContentListFragment extends Fragment implements DataManager.OnDataC
             recyclerView.setVisibility(View.GONE);
             ivPlaceholder.setVisibility(View.VISIBLE);
         }
+    }
+
+    private void initiateDataLoading(){
+        DataManager.loadCategory(category);
     }
 }

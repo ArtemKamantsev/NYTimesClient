@@ -2,7 +2,6 @@ package com.kamantsev.nytimes.controllers;
 
 import android.util.Log;
 import android.widget.ImageView;
-import android.widget.Toast;
 
 import com.google.gson.GsonBuilder;
 import com.kamantsev.nytimes.R;
@@ -15,20 +14,16 @@ import com.kamantsev.nytimes.models.request_model.ResultShared;
 import com.kamantsev.nytimes.models.request_model.ResultViewed;
 import com.squareup.picasso.Picasso;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
-
-import javax.net.ssl.HttpsURLConnection;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
+
+import static com.kamantsev.nytimes.controllers.DataManager.DataLoadingListener;
 
 //Клас, що працює з мережею
 class NetworkDataProvider {
@@ -48,16 +43,16 @@ class NetworkDataProvider {
         api = retrofit.create(NYTAPI.class);
     }
 
-    static void requestData(final Category category){
+    static void requestData(final Category category, DataManager.DataLoadingListener listener){
         switch (category){
             case EMAILED:
-                api.getMostEmailed(api_key).enqueue(new RequestCallback<ResultEmailed>(category));
+                api.getMostEmailed(api_key).enqueue(new RequestCallback<ResultEmailed>(category, listener));
                 break;
             case SHARED:
-                api.getMostShared(api_key).enqueue(new RequestCallback<ResultShared>(category));
+                api.getMostShared(api_key).enqueue(new RequestCallback<ResultShared>(category, listener));
                 break;
             case VIEWED:
-                api.getMostViewed(api_key).enqueue(new RequestCallback<ResultViewed>(category));
+                api.getMostViewed(api_key).enqueue(new RequestCallback<ResultViewed>(category, listener));
                 break;
             default:
                 throw new IllegalArgumentException("Wrong category!");
@@ -80,24 +75,32 @@ class NetworkDataProvider {
     private static class RequestCallback<T extends AbstractResult> implements Callback<NYTResponse<T>>{
 
         private Category category;
+        private DataLoadingListener responseListener;
 
-        RequestCallback(Category category){
+        RequestCallback(Category category, DataLoadingListener responseListener){
             this.category = category;
+            this.responseListener = responseListener;
         }
 
         @Override
         public void onResponse(Call<NYTResponse<T>> call, Response<NYTResponse<T>> response) {
-            List<Article> articles = new LinkedList<>();
-            for(AbstractResult result : response.body().getResults()){
-                Article article = new Article(result, category);
-                articles.add(article);
+            if(response.body() != null) {
+                List<Article> articles = new LinkedList<>();
+                for (AbstractResult result : response.body().getResults()) {
+                    Article article = new Article(result, category);
+                    articles.add(article);
+                }
+                DataManager.setCategory(category, articles);
+                responseListener.onLoadingSucceed();
+            }else{
+                responseListener.onLoadingFailed();
             }
-            DataManager.setCategory(category, articles);
         }
 
         @Override
         public void onFailure(Call<NYTResponse<T>> call, Throwable t) {
             failure(category.toString(), t);
+            responseListener.onLoadingFailed();
         }
     }
 }

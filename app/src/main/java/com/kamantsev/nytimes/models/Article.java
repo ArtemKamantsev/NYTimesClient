@@ -1,7 +1,6 @@
 package com.kamantsev.nytimes.models;
 
 import com.kamantsev.nytimes.models.request_model.AbstractResult;
-import com.kamantsev.nytimes.models.request_model.ResultEmailed;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -10,11 +9,11 @@ import java.util.Set;
 public class Article {
 
     private AbstractResult articleExtra;//додаткова інформація про статтю, що надійшла із сервера
-    private Set<Category> categories;//категорії, до яких належить стаття
+    private Set<Category> categories;
 
     public Article(AbstractResult articleExtra, Category initialCategory){
         this.articleExtra=articleExtra;
-        this.categories=new HashSet<>();
+        this.categories = new HashSet<>();
         this.categories.add(initialCategory);
     }
 
@@ -29,17 +28,32 @@ public class Article {
         return res;
     }
 
+    @Override
+    public int hashCode() {
+        return (int)(articleExtra.getId()%Integer.MAX_VALUE);
+    }
+
     public AbstractResult getArticleExtra() {
         return articleExtra;
     }
 
-    public boolean addCategory(Category category){
-        return categories.add(category);
+    public void addCategory(Category category){
+        categories.add(category);
     }
 
-    public void unfavorite(){
-        categories.remove(Category.FAVORITE);
+    public void removeCategory(Category category){
+        categories.remove(category);
     }
 
-    public boolean isBelong(Category category){ return categories.contains(category);}
+    public boolean isBelong(Category category){
+        return categories.contains(category);
+    }
+
+    public void updateData(Article article){
+        this.articleExtra.setPath(article.getArticleExtra().getPath());
+    }
+
+    public int getCategoriesCount(){
+        return categories.size();
+    }
 }
