@@ -32,7 +32,7 @@ public abstract class Database extends RoomDatabase {
 
     public abstract ResultDao getResultDao();
 
-    public abstract MediumDao getMediumDao();
+    public abstract MediaDao getMediumDao();
 
     public abstract MediaMetadataDao getMetadataDao();
 }

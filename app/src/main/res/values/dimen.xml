@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="card_corner_radius">10dp</dimen>
+    <dimen name="card_elevation">5dp</dimen>
+
+    <dimen name="toolbar_margin_right">10dp</dimen>
+
+    <dimen name="header_size">16dp</dimen>
+    <dimen name="abstract_size">14dp</dimen>
+</resources>

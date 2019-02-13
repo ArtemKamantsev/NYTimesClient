@@ -12,7 +12,7 @@ import com.kamantsev.nytimes.models.request_model.Media;
 import java.util.List;
 
 @Dao
-public interface MediumDao {
+public interface MediaDao {
 
     @Query("SELECT * FROM Media WHERE resultId=:resultId")
     List<Media> getMediumsForResult(final long resultId);

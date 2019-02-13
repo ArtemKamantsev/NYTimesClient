@@ -23,7 +23,7 @@ import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
-import static com.kamantsev.nytimes.controllers.DataManager.DataLoadingListener;
+import static com.kamantsev.nytimes.controllers.DataManager.DataModifiedListener;
 
 //Клас, що працює з мережею
 class NetworkDataProvider {
@@ -43,7 +43,7 @@ class NetworkDataProvider {
         api = retrofit.create(NYTAPI.class);
     }
 
-    static void requestData(final Category category, DataManager.DataLoadingListener listener){
+    static void requestData(final Category category, DataModifiedListener listener){
         switch (category){
             case EMAILED:
                 api.getMostEmailed(api_key).enqueue(new RequestCallback<ResultEmailed>(category, listener));
@@ -63,7 +63,7 @@ class NetworkDataProvider {
         //Завантажуємо картинки за допомогою бібліотеки Picasso
         Picasso.get()//with(DataManager.getContext())
                 .load(url)
-                .placeholder(R.drawable.loading)
+                .placeholder(R.drawable.ic_loading)
                 .error(R.drawable.error)
                 .into(imageView);
     }
@@ -75,9 +75,9 @@ class NetworkDataProvider {
     private static class RequestCallback<T extends AbstractResult> implements Callback<NYTResponse<T>>{
 
         private Category category;
-        private DataLoadingListener responseListener;
+        private DataModifiedListener responseListener;
 
-        RequestCallback(Category category, DataLoadingListener responseListener){
+        RequestCallback(Category category, DataModifiedListener responseListener){
             this.category = category;
             this.responseListener = responseListener;
         }
@@ -91,16 +91,16 @@ class NetworkDataProvider {
                     articles.add(article);
                 }
                 DataManager.setCategory(category, articles);
-                responseListener.onLoadingSucceed();
+                responseListener.onDataModified(DataModifiedListener.Status.CATEGORY_LOADED);
             }else{
-                responseListener.onLoadingFailed();
+                responseListener.onDataModified(DataModifiedListener.Status.CATEGORY_LOADING_FAILED);
             }
         }
 
         @Override
         public void onFailure(Call<NYTResponse<T>> call, Throwable t) {
             failure(category.toString(), t);
-            responseListener.onLoadingFailed();
+            responseListener.onDataModified(DataModifiedListener.Status.CATEGORY_LOADING_FAILED);
         }
     }
 }

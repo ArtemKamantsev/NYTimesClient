@@ -7,19 +7,18 @@ import android.support.v4.app.Fragment;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
+import android.support.v7.widget.helper.ItemTouchHelper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
-import android.widget.Toast;
 
 import com.kamantsev.nytimes.R;
 import com.kamantsev.nytimes.controllers.DataManager;
 import com.kamantsev.nytimes.models.Category;
 
 public class ContentListFragment extends Fragment
-        implements DataManager.DataLoadingListener,
+        implements DataManager.DataModifiedListener,
         SwipeRefreshLayout.OnRefreshListener {
 
     private static final String ARG_CATEGORY = "category";
@@ -53,8 +52,6 @@ public class ContentListFragment extends Fragment
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        adapter.notifyDataSetChanged();
-        // Inflate the layout for this fragment
         return inflater.inflate(R.layout.fragment_content_list, container, false);
     }
     @Override
@@ -66,8 +63,22 @@ public class ContentListFragment extends Fragment
         ivPlaceholder = rootView.findViewById(R.id.iv_placeholder);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
-        recyclerView.setHasFixedSize(true);
         recyclerView.setAdapter(adapter);
+        if(category == Category.FAVORITE){
+            new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0,ItemTouchHelper.LEFT) {
+                @Override
+                public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder viewHolder1) {
+                    return false;
+                }
+
+                @Override
+                public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int i) {
+                    Long id = DataManager.getArticle(category, viewHolder.getAdapterPosition())
+                            .getArticleExtra().getId();
+                    DataManager.tryToRemoveFromFavorite(getActivity(), id);
+                }
+            }).attachToRecyclerView(recyclerView);
+        }
 
         swipeRefreshLayout = rootView.findViewById(R.id.srl_content);
         swipeRefreshLayout.setOnRefreshListener(this);
@@ -85,14 +96,14 @@ public class ContentListFragment extends Fragment
     @Override
     public void onStart() {
         super.onStart();
-        DataManager.registerOnDataChangeListener(category, this);
+        DataManager.registerOnDataModifiedListener(category, this);
         initView();
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        DataManager.unregisterOnDataChangeListener(category, this);
+        DataManager.unregisterOnDataModifiedListener(category, this);
     }
 
     @Override
@@ -107,17 +118,12 @@ public class ContentListFragment extends Fragment
     }
 
     @Override
-    public void onLoadingSucceed() {
-        swipeRefreshLayout.setRefreshing(false);
+    public void onDataModified(Status status) {
         initView();
     }
 
-    @Override
-    public void onLoadingFailed() {
-        swipeRefreshLayout.setRefreshing(false);
-    }
-
     private void initView(){
+        swipeRefreshLayout.setRefreshing(false);
         if(DataManager.getArticleCount(category)>0) {
             recyclerView.setVisibility(View.VISIBLE);
             ivPlaceholder.setVisibility(View.GONE);

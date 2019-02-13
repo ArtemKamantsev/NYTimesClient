@@ -1,5 +1,6 @@
 package com.kamantsev.nytimes.views;
 
+import android.databinding.DataBindingUtil;
 import android.os.Bundle;
 import android.support.design.widget.TabLayout;
 import android.support.v4.view.ViewPager;
@@ -48,5 +49,6 @@ public class MainActivity extends AppCompatActivity {
 }
 
 /*TODO try to migrate to androidx
- * check all scenarios
+check all values placed in value's folder and styles are used
+Create preferences & light/dark theme choose
 */

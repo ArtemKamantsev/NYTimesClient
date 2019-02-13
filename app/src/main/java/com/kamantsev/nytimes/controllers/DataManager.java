@@ -1,7 +1,10 @@
 package com.kamantsev.nytimes.controllers;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.os.Handler;
+import android.os.Looper;
+import android.support.v7.app.AlertDialog;
 import android.util.Log;
 import android.widget.ImageView;
 
@@ -22,11 +25,12 @@ import com.kamantsev.nytimes.models.Category;
 
 public class DataManager {
 
-    private static final String DOWNLOAD_FAILED = "Downloading failed. See logs for more details.",
-            DELETE_FAILED = "Removing file failed. See logs for more details.";
-
-    //Розділ, обраний за замовчуванням
-    private static final String defaultSection = "all-sections";
+    //Тексти для вікна підтвердження видалення статті з "Favorite"
+    private static final String alertTitle = "Removal confirmation",
+            alertMessage = "This article will be removed from \"Favorite\" tab" +
+                    " and from device storage. Are you sure you want to remove it?",
+            alertBtn1 = "Yes",
+            alertBtn2 = "No";
 
     private static Handler UIHandler;//For performing actions on UI thread
 
@@ -36,25 +40,25 @@ public class DataManager {
 
     private static Context context;//Контекст додатку, необхідний для деяких операцій
 
-    private static Set<DataLoadingListener>[] dataLoadingListeners;
+    private static Set<DataModifiedListener>[] dataModifiedListeners;
+
+
 
     static {
         int tabsCount = Category.values().length;
         pages = new LinkedList[tabsCount];//переважно додавання або послідовний доступ
-        dataLoadingListeners = new HashSet[tabsCount];//найшвидша реалізація. Впорядкування не потрібне
+        dataModifiedListeners = new HashSet[tabsCount];//найшвидша реалізація. Впорядкування не потрібне
         for (int i = 0; i < tabsCount; i++) {
             pages[i] = new LinkedList<>();
-            dataLoadingListeners[i] = new HashSet<>();
+            dataModifiedListeners[i] = new HashSet<>();
         }
         uniqueArticles = new HashMap<>();//найшвидша реалізація. Впорядкування не потрібне
+        UIHandler = new Handler(Looper.getMainLooper());
     }
-
 
     //Service
     public static void initialize(Context context) {
         DataManager.context = context;
-        UIHandler = new Handler();
-
         loadCategory(Category.FAVORITE);
     }
 
@@ -65,15 +69,10 @@ public class DataManager {
     //Network
     public static void loadCategory(final Category category) {
 
-        DataLoadingListener listener = new DataLoadingListener() {
+        DataModifiedListener listener = new DataModifiedListener() {
             @Override
-            public void onLoadingSucceed() {
-                notifyOnDataLoadingListener(category, true);
-            }
-
-            @Override
-            public void onLoadingFailed() {
-                notifyOnDataLoadingListener(category, false);
+            public void onDataModified(Status status) {
+                notifyOnDataModifiedListener(category, status);
             }
         };
 
@@ -83,7 +82,7 @@ public class DataManager {
                 public void run() {
                     //Failure on loading favorite isn't expected
                     DeviceStorageDataProvider.loadFavorite();
-                    notifyOnDataLoadingListener(category, true);
+                    notifyOnDataModifiedListener(category, DataModifiedListener.Status.CATEGORY_LOADED);
                 }
             }).start();
         }else{
@@ -121,7 +120,6 @@ public class DataManager {
             }
             pages[category.ordinal()].add(articleID);
         }
-        notifyOnDataLoadingListener(category, true);
     }
 
     static void setFavorite(List<Article> articles) {
@@ -138,7 +136,6 @@ public class DataManager {
             }
             pages[Category.FAVORITE.ordinal()].add(articleID);
         }
-        notifyOnDataLoadingListener(Category.FAVORITE, true);
     }
 
     public static Article getArticle(Category category, int index) {
@@ -156,25 +153,21 @@ public class DataManager {
 
 
     //Data listeners
-    public static void registerOnDataChangeListener(Category category, DataLoadingListener listener) {
-        dataLoadingListeners[category.ordinal()].add(listener);
+    public static void registerOnDataModifiedListener(Category category, DataModifiedListener listener) {
+        dataModifiedListeners[category.ordinal()].add(listener);
     }
 
-    public static void unregisterOnDataChangeListener(Category category, DataLoadingListener listener) {
-        dataLoadingListeners[category.ordinal()].remove(listener);
+    public static void unregisterOnDataModifiedListener(Category category, DataModifiedListener listener) {
+        dataModifiedListeners[category.ordinal()].remove(listener);
     }
 
-    private static void notifyOnDataLoadingListener(final Category category, final boolean isSucceed) {
+    private static void notifyOnDataModifiedListener(final Category category, final DataModifiedListener.Status status) {
         //most listeners(in fact all) need to update their UI on data change
         UIHandler.post(new Runnable() {
             @Override
             public void run() {
-                for (DataLoadingListener listener : dataLoadingListeners[category.ordinal()]) {
-                    if(isSucceed) {
-                        listener.onLoadingSucceed();
-                    }else{
-                        listener.onLoadingFailed();
-                    }
+                for (DataModifiedListener listener : dataModifiedListeners[category.ordinal()]) {
+                    listener.onDataModified(status);
                 }
             }
         });
@@ -184,24 +177,44 @@ public class DataManager {
     //Files operations
     public static void addToFavorite(Long articleID) {
         final Article article = getArticle(articleID);
-
+        article.addCategory(Category.LOADING);
         new Thread(new Runnable() {
             @Override
             public void run() {
-                article.addCategory(Category.LOADING);
                 if (DeviceStorageDataProvider.saveArticle(article)) {
                     article.addCategory(Category.FAVORITE);
                     pages[Category.FAVORITE.ordinal()].add(article.getArticleExtra().getId());
-                    notifyOnDataLoadingListener(Category.FAVORITE, true);
+                    notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_SAVED);
                 } else {
-                    notifyOnDataLoadingListener(Category.FAVORITE, false);
+                    notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_SAVING_FAILED);
                 }
                 article.removeCategory(Category.LOADING);
             }
         }).start();
     }
 
-    public static void removeFromFavorite(Long articleID) {
+    public static void tryToRemoveFromFavorite(Context context, final Long articleID) {
+        //Відображаємо вікно підтвердження видалення.
+        AlertDialog.Builder alertDialog = new AlertDialog.Builder(context);
+        alertDialog.setTitle(alertTitle);  // заголовок
+        alertDialog.setMessage(alertMessage); // повідомлення
+        alertDialog.setPositiveButton(alertBtn1, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int arg1) {
+                removeFromFavorite(articleID);
+            }
+        });
+        alertDialog.setNegativeButton(alertBtn2, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_REMOVING_CANCELED);
+            }
+        });//нічого не робимо
+        alertDialog.setCancelable(true);
+        alertDialog.show();
+    }
+
+
+    private static void removeFromFavorite(final Long articleID){
         final Article article = getArticle(articleID);
 
         new Thread(new Runnable() {
@@ -209,15 +222,13 @@ public class DataManager {
             public void run() {
                 if (DeviceStorageDataProvider.deleteArticle(article)) {
                     removeArticle(Category.FAVORITE, article);
-                    notifyOnDataLoadingListener(Category.FAVORITE, true);
+                    notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_REMOVED);
                 } else {
-                    notifyOnDataLoadingListener(Category.FAVORITE, false);
+                    notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_REMOVING_FAILED);
                 }
             }
         }).start();
     }
-
-
 
     private static void clearCategory(Category category){
         Iterator<Long> iterator = pages[category.ordinal()].iterator();
@@ -247,14 +258,17 @@ public class DataManager {
 
 
     //Inners
-    public interface DataLoadingListener {
-        void onLoadingSucceed();
-        void onLoadingFailed();
-    }
+    public interface DataModifiedListener {
+        void onDataModified(Status status);
 
-    public interface FileOperationCallback {
-        void onSucceed();
-
-        void onFailure(String message);
+        enum Status{
+            CATEGORY_LOADED,
+            CATEGORY_LOADING_FAILED,
+            ARTICLE_SAVED,
+            ARTICLE_SAVING_FAILED,
+            ARTICLE_REMOVED,
+            ARTICLE_REMOVING_FAILED,
+            ARTICLE_REMOVING_CANCELED
+        }
     }
 }

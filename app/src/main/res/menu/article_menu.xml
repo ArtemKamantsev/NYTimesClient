@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
     <item
         android:id="@+id/action_favorite"
-        android:icon="@drawable/favorite_border"
+        android:icon="@drawable/ic_baseline_favorite_border_24px"
         android:title="@string/action_favorite"
-        app:showAsAction="ifRoom"></item>
+        app:actionViewClass="android.widget.ImageView"
+        app:showAsAction="always"></item>
 </menu>

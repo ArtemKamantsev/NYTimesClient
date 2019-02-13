@@ -4,14 +4,14 @@ import android.os.Environment;
 import android.util.Log;
 
 import com.kamantsev.nytimes.controllers.db.Database;
+import com.kamantsev.nytimes.controllers.db.MediaDao;
 import com.kamantsev.nytimes.controllers.db.MediaMetadataDao;
-import com.kamantsev.nytimes.controllers.db.MediumDao;
 import com.kamantsev.nytimes.controllers.db.ResultDao;
 import com.kamantsev.nytimes.models.Article;
 import com.kamantsev.nytimes.models.Category;
 import com.kamantsev.nytimes.models.request_model.AbstractResult;
-import com.kamantsev.nytimes.models.request_model.MediaMetadata;
 import com.kamantsev.nytimes.models.request_model.Media;
+import com.kamantsev.nytimes.models.request_model.MediaMetadata;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -22,8 +22,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import javax.net.ssl.HttpsURLConnection;
-
-import static com.kamantsev.nytimes.controllers.DataManager.DataLoadingListener;
 
 //Клас, що працює з базою даних та локальним сховищем даних
 class DeviceStorageDataProvider {
@@ -39,7 +37,7 @@ class DeviceStorageDataProvider {
     private static final String baseFilePath;//шлях до папки файлів додатку
 
     private static final ResultDao resultDao;
-    private static final MediumDao mediumDao;
+    private static final MediaDao mediumDao;
     private static final MediaMetadataDao metadataDao;
 
     static {
@@ -55,7 +53,6 @@ class DeviceStorageDataProvider {
         List<Article> articles = new LinkedList<>();
 
         List<AbstractResult> results = resultDao.loadAllResults();
-
         for (AbstractResult result : results) {
             List<Media> mediaList = mediumDao.getMediumsForResult(result.getId());
 
@@ -188,14 +185,14 @@ class DeviceStorageDataProvider {
     }
 
     private static String getPath(Article article) {
+        String title = article.getArticleExtra().getTitle().trim();
         String res = baseFilePath + File.separator + article.getArticleExtra().getPublishedDate()
-                    + File.separator + article.getArticleExtra().getTitle()
-                    + File.separator + article.getArticleExtra().getTitle() + ".html";
+                    + File.separator + title
+                    + File.separator + title + ".html";
         return res;
     }
 
     private static boolean checkFileExist(String path) {
-        Log.e("DataProvider","checkFileExist");
         File file = new File(path);
         if (file.exists()) {
             return true;
