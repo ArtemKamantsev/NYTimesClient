@@ -10,8 +10,8 @@ import java.util.List;
 
 class CategoriesTabsAdapter extends FragmentPagerAdapter {
 
-    private final List<Fragment> mFragmentList = new ArrayList<>();
-    private final List<String> mFragmentTitleList = new ArrayList<>();
+    private final List<Fragment> mFragmentList = new ArrayList<>();//tabs' content
+    private final List<String> mFragmentTitleList = new ArrayList<>();//tabs' headers
 
     CategoriesTabsAdapter(FragmentManager fragmentManager){
         super(fragmentManager);

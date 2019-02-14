@@ -20,10 +20,4 @@ public interface MediaMetadataDao {
 
     @Insert
     void insert(MediaMetadata medium);
-
-    @Update(onConflict = OnConflictStrategy.REPLACE)
-    void update(MediaMetadata... metadata);
-
-    @Delete
-    void delete(MediaMetadata... metadata);
 }

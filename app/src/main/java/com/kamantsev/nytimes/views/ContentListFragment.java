@@ -17,6 +17,7 @@ import com.kamantsev.nytimes.R;
 import com.kamantsev.nytimes.controllers.DataManager;
 import com.kamantsev.nytimes.models.Category;
 
+//Represent specific category
 public class ContentListFragment extends Fragment
         implements DataManager.DataModifiedListener,
         SwipeRefreshLayout.OnRefreshListener {
@@ -96,6 +97,7 @@ public class ContentListFragment extends Fragment
     @Override
     public void onStart() {
         super.onStart();
+        //Attach fragment to control data changes of specific category
         DataManager.registerOnDataModifiedListener(category, this);
         initView();
     }
@@ -103,12 +105,15 @@ public class ContentListFragment extends Fragment
     @Override
     public void onStop() {
         super.onStop();
+        //Remove article from listeners of specific data category
+        //Due to lifecycles it has to be placed here
         DataManager.unregisterOnDataModifiedListener(category, this);
     }
 
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
+        //Saving attached category
         outState.putString(ARG_CATEGORY, category.toString());
     }
 
@@ -123,11 +128,11 @@ public class ContentListFragment extends Fragment
     }
 
     private void initView(){
-        swipeRefreshLayout.setRefreshing(false);
+        swipeRefreshLayout.setRefreshing(false);//Remove loading circle
         if(DataManager.getArticleCount(category)>0) {
             recyclerView.setVisibility(View.VISIBLE);
             ivPlaceholder.setVisibility(View.GONE);
-            adapter.notifyDataSetChanged();//force the recycleView to refresh
+            adapter.notifyDataSetChanged();//force the recycleView to refresh category
         }else{
             recyclerView.setVisibility(View.GONE);
             ivPlaceholder.setVisibility(View.VISIBLE);
@@ -135,6 +140,7 @@ public class ContentListFragment extends Fragment
     }
 
     private void initiateDataLoading(){
+        //Force to reload specific category
         DataManager.loadCategory(category);
     }
 }

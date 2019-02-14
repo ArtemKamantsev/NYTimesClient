@@ -1,11 +1,9 @@
 package com.kamantsev.nytimes.views;
 
-import android.databinding.DataBindingUtil;
 import android.os.Bundle;
 import android.support.design.widget.TabLayout;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
-import android.view.Menu;
 
 import com.kamantsev.nytimes.R;
 import com.kamantsev.nytimes.controllers.DataManager;
@@ -18,7 +16,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        DataManager.initialize(getApplicationContext());//початкова ініціацізація і завантаження даних з бази
+        //should be right here, because of the peculiarities of the app lifecycle
+        DataManager.initialize(getApplicationContext());//app initialization and loading data from favorite
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -33,6 +32,7 @@ public class MainActivity extends AppCompatActivity {
     private void setupViewPager(){
         CategoriesTabsAdapter adapter = new CategoriesTabsAdapter(getSupportFragmentManager());
 
+        //Creating adapter's tabs
         adapter.addTab(ContentListFragment.newInstance(Category.EMAILED), Category.EMAILED.toString());
         adapter.addTab(ContentListFragment.newInstance(Category.SHARED), Category.SHARED.toString());
         adapter.addTab(ContentListFragment.newInstance(Category.VIEWED), Category.VIEWED.toString());
@@ -40,15 +40,4 @@ public class MainActivity extends AppCompatActivity {
 
         mViewPager.setAdapter(adapter);
     }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.main_menu, menu);
-        return true;
-    }
 }
-
-/*TODO try to migrate to androidx
-check all values placed in value's folder and styles are used
-Create preferences & light/dark theme choose
-*/

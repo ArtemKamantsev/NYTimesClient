@@ -5,21 +5,21 @@
 
     <!--Activity article's themes-->
     <style name="ArticleTheme" parent="Theme.AppCompat.NoActionBar"></style>
+
     <style name="ArticleAppBar" parent="ThemeOverlay.AppCompat.Dark.ActionBar">
-        <item name = "android:background">?attr/colorPrimary</item>
-    </style>
-    <style name="ArticlePopupTheme" parent="ThemeOverlay.AppCompat.Dark">
-        <item name = "android:background">?attr/colorPrimary</item>
+        <item name="android:background">?attr/colorPrimary</item>
     </style>
 
     <!--Views styles-->
     <style name="CardViewStyle" parent="CardView.Light">
         <item name="cardCornerRadius">@dimen/card_corner_radius</item>
         <item name="cardElevation">@dimen/card_elevation</item>
+        <item name="cardUseCompatPadding">true</item>
+        <item name="cardPreventCornerOverlap">true</item>
     </style>
 
     <style name="TabLayout" parent="ThemeOverlay.AppCompat.Dark.ActionBar">
-        <item name = "android:background">?attr/colorPrimary</item>
+        <item name="android:background">?attr/colorPrimary</item>
     </style>
 
     <!--Text styles-->
@@ -27,6 +27,8 @@
         <item name="android:textColor">@color/fontDark</item>
         <item name="android:textSize">@dimen/header_size</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
     </style>
 
     <style name="Abstract" parent="TextAppearance.AppCompat.Body1">
@@ -34,6 +36,14 @@
         <item name="android:textSize">@dimen/abstract_size</item>
         <item name="android:ellipsize">end</item>
         <item name="android:maxLines">1</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
     </style>
-    
+
+    <style name="Image">
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/image_height</item>
+    </style>
+
 </resources>

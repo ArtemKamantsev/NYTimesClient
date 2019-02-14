@@ -6,21 +6,21 @@ import android.os.Bundle;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.kamantsev.nytimes.models.Article;
 import com.kamantsev.nytimes.R;
 import com.kamantsev.nytimes.controllers.DataManager;
+import com.kamantsev.nytimes.models.Article;
 import com.kamantsev.nytimes.models.Category;
 
 public class ArticleActivity extends AppCompatActivity implements DataManager.DataModifiedListener {
@@ -31,7 +31,7 @@ public class ArticleActivity extends AppCompatActivity implements DataManager.Da
 
     private WebView webView;//контейнер для статті
     private Long articleID;//поточна стаття
-    private MenuItem itemFavorite;
+    private ImageView itemFavorite;
     private Animation rotation;
 
     public static Intent getIntent(Context context, long articleId) {
@@ -98,9 +98,9 @@ public class ArticleActivity extends AppCompatActivity implements DataManager.Da
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.article_menu, menu);
-        itemFavorite = menu.findItem(R.id.action_favorite);
-        itemFavorite.setActionView(R.layout.image_view);
-        itemFavorite.getActionView().setOnClickListener(new View.OnClickListener() {
+        menu.findItem(R.id.action_favorite).setActionView(R.layout.favorite_icon_layout);
+        itemFavorite = (ImageView)((FrameLayout)menu.findItem(R.id.action_favorite).getActionView()).getChildAt(0);
+        itemFavorite.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 setFavorite();
@@ -126,7 +126,6 @@ public class ArticleActivity extends AppCompatActivity implements DataManager.Da
         switch (status){
             case ARTICLE_SAVED:
                 showToast("Article saved successfully!");
-                loadContent();
                 break;
             case ARTICLE_SAVING_FAILED:
                 showToast("Article wasn't saved.");
@@ -153,12 +152,6 @@ public class ArticleActivity extends AppCompatActivity implements DataManager.Da
 
     private void setWebView() {
         webView = findViewById(R.id.web_view);
-        WebSettings webSettings = webView.getSettings();
-
-        //could be uncommented, but will enlarge loading time
-//        webSettings.setLoadsImagesAutomatically(true);
-//        webSettings.setJavaScriptEnabled(true);
-
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_INSET);
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -175,6 +168,7 @@ public class ArticleActivity extends AppCompatActivity implements DataManager.Da
     }
 
     private void loadContent() {
+        Log.e("aa","loadContent");
         Article article = DataManager.getArticle(articleID);
         webView.loadUrl(article.getArticleExtra().getPath());
     }
@@ -182,19 +176,14 @@ public class ArticleActivity extends AppCompatActivity implements DataManager.Da
     private void setFavoriteIcon() {
         Article article = DataManager.getArticle(articleID);
         if (itemFavorite != null && article != null) {
-            ImageView iv = (ImageView)((FrameLayout)itemFavorite.getActionView()).getChildAt(0);
-            iv.clearAnimation();
+            itemFavorite.clearAnimation();
             if (article.isBelong(Category.FAVORITE)) {
-                //itemFavorite.setIcon(R.drawable.ic_baseline_favorite_24px);
-                iv.setImageResource(R.drawable.ic_baseline_favorite_24px);
+                itemFavorite.setImageResource(R.drawable.ic_baseline_favorite_24px);
             } else if (article.isBelong(Category.LOADING)) {
-                //itemFavorite.setIcon(R.drawable.ic_loading);
-                iv.setImageResource(R.drawable.ic_loading);
-                iv.startAnimation(rotation);
+                itemFavorite.setImageResource(R.drawable.ic_loading);
+                itemFavorite.startAnimation(rotation);
             } else {
-                //itemFavorite.setIcon(R.drawable.favorite_border);
-                iv.setImageResource(R.drawable.ic_baseline_favorite_border_24px);
-                /*((ImageView)MenuItemCompat.getActionView(itemFavorite)).setImageResource(R.drawable.favorite_border);*/
+                itemFavorite.setImageResource(R.drawable.ic_baseline_favorite_border_24px);
             }
         }
     }

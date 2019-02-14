@@ -25,26 +25,27 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 import static com.kamantsev.nytimes.controllers.DataManager.DataModifiedListener;
 
-//Клас, що працює з мережею
+//Network interaction logic
 class NetworkDataProvider {
 
-    private static final String api_key = "Zw2O9kvGDEB5ytPocGdybvc8miwf02aV";//ключ ідентицікації на сервері
-    private static final String baseUrl="https://api.nytimes.com/svc/mostpopular/v2/";//незмінна частина запиту
+    private static final String api_key = "Zw2O9kvGDEB5ytPocGdybvc8miwf02aV";//api-key for authorization in data request
+    private static final String baseUrl = "https://api.nytimes.com/svc/mostpopular/v2/";//static part of request
 
     private static NYTAPI api;
 
 
-    static{
+    static {
+        //Create API object for requests
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(baseUrl)
                 .addConverterFactory(GsonConverterFactory.create(
-                        new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create()) )
+                        new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create()))
                 .build();
         api = retrofit.create(NYTAPI.class);
     }
 
-    static void requestData(final Category category, DataModifiedListener listener){
-        switch (category){
+    static void requestData(final Category category, DataModifiedListener listener) {
+        switch (category) {
             case EMAILED:
                 api.getMostEmailed(api_key).enqueue(new RequestCallback<ResultEmailed>(category, listener));
                 break;
@@ -59,47 +60,47 @@ class NetworkDataProvider {
         }
     }
 
-    static void loadImage(ImageView imageView, String url){
-        //Завантажуємо картинки за допомогою бібліотеки Picasso
-        Picasso.get()//with(DataManager.getContext())
+    static void loadImage(ImageView imageView, String url) {
+        //Load specified picture
+        Picasso.get()
                 .load(url)
                 .placeholder(R.drawable.ic_loading)
                 .error(R.drawable.error)
                 .into(imageView);
     }
 
-    private static void failure(String tag, Throwable t){
-        Log.e(tag, t.toString());
-    }
-
-    private static class RequestCallback<T extends AbstractResult> implements Callback<NYTResponse<T>>{
+    private static class RequestCallback<T extends AbstractResult> implements Callback<NYTResponse<T>> {
 
         private Category category;
         private DataModifiedListener responseListener;
 
-        RequestCallback(Category category, DataModifiedListener responseListener){
+        RequestCallback(Category category, DataModifiedListener responseListener) {
             this.category = category;
             this.responseListener = responseListener;
         }
 
         @Override
         public void onResponse(Call<NYTResponse<T>> call, Response<NYTResponse<T>> response) {
-            if(response.body() != null) {
+            if (response.body() != null) {
+                //Convert response object's to Articles
                 List<Article> articles = new LinkedList<>();
                 for (AbstractResult result : response.body().getResults()) {
                     Article article = new Article(result, category);
                     articles.add(article);
                 }
-                DataManager.setCategory(category, articles);
+                DataManager.setCategory(category, articles);//set new Articles
+                //notify category data changed successfully
                 responseListener.onDataModified(DataModifiedListener.Status.CATEGORY_LOADED);
-            }else{
+            } else {
+                //notify category data request failure
                 responseListener.onDataModified(DataModifiedListener.Status.CATEGORY_LOADING_FAILED);
             }
         }
 
         @Override
         public void onFailure(Call<NYTResponse<T>> call, Throwable t) {
-            failure(category.toString(), t);
+            Log.e(category.toString(), t.toString());//log failure
+            //notify category data request failure
             responseListener.onDataModified(DataModifiedListener.Status.CATEGORY_LOADING_FAILED);
         }
     }

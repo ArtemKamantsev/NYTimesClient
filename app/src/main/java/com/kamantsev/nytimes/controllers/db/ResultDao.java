@@ -20,9 +20,6 @@ public interface ResultDao {
     @Insert
     void insertResult(AbstractResult result);
 
-    @Update(onConflict = OnConflictStrategy.REPLACE)
-    void updateResult(AbstractResult result);
-
     @Delete
     void deleteResult(AbstractResult result);
 }

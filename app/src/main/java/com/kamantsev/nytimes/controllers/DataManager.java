@@ -23,9 +23,10 @@ import java.util.Set;
 
 import com.kamantsev.nytimes.models.Category;
 
+//Provides any data access in the app
 public class DataManager {
 
-    //Тексти для вікна підтвердження видалення статті з "Favorite"
+    //Labels for dialog of confirmation article removing from Favorite
     private static final String alertTitle = "Removal confirmation",
             alertMessage = "This article will be removed from \"Favorite\" tab" +
                     " and from device storage. Are you sure you want to remove it?",
@@ -34,25 +35,23 @@ public class DataManager {
 
     private static Handler UIHandler;//For performing actions on UI thread
 
-    //У додатку об'єкти статей існують у єдиному екземплярі
-    private static List<Long>[] pages;//список індексів статей за категоріями
-    private static Map<Long, Article> uniqueArticles;//Список унікальних статей
+    private static List<Long>[] pages;//Articles by categories
+    private static Map<Long, Article> uniqueArticles;//Unique articles
 
-    private static Context context;//Контекст додатку, необхідний для деяких операцій
+    private static Context context;//Application context
 
     private static Set<DataModifiedListener>[] dataModifiedListeners;
 
 
-
     static {
-        int tabsCount = Category.values().length;
-        pages = new LinkedList[tabsCount];//переважно додавання або послідовний доступ
-        dataModifiedListeners = new HashSet[tabsCount];//найшвидша реалізація. Впорядкування не потрібне
+        int tabsCount = 4;
+        pages = new LinkedList[tabsCount];//adding or sequential access prevails
+        dataModifiedListeners = new HashSet[tabsCount];
         for (int i = 0; i < tabsCount; i++) {
             pages[i] = new LinkedList<>();
-            dataModifiedListeners[i] = new HashSet<>();
+            dataModifiedListeners[i] = new HashSet<>();//The faster implementation. No ordering required
         }
-        uniqueArticles = new HashMap<>();//найшвидша реалізація. Впорядкування не потрібне
+        uniqueArticles = new HashMap<>();//The faster implementation. No ordering required
         UIHandler = new Handler(Looper.getMainLooper());
     }
 
@@ -69,28 +68,21 @@ public class DataManager {
     //Network
     public static void loadCategory(final Category category) {
 
-        DataModifiedListener listener = new DataModifiedListener() {
-            @Override
-            public void onDataModified(Status status) {
-                notifyOnDataModifiedListener(category, status);
-            }
-        };
-
-        if(category == Category.FAVORITE){
+        if (category == Category.FAVORITE) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    //Failure on loading favorite isn't expected
                     DeviceStorageDataProvider.loadFavorite();
+                    //Failure on loading favorite isn't expected
                     notifyOnDataModifiedListener(category, DataModifiedListener.Status.CATEGORY_LOADED);
                 }
             }).start();
-        }else{
+        } else {
 
             try {
-                if(context == null){
+                /*if(context == null){
                     Log.e("DataManager", "null context");
-                }
+                }*/
                 //Fix android protocols' bug in old versions
                 ProviderInstaller.installIfNeeded(context);
             } catch (GooglePlayServicesRepairableException e) {
@@ -99,7 +91,12 @@ public class DataManager {
                 Log.e("DataManager", "static initializer", e);
             }
 
-            NetworkDataProvider.requestData(category, listener);
+            NetworkDataProvider.requestData(category, new DataModifiedListener() {
+                @Override
+                public void onDataModified(Status status) {
+                    notifyOnDataModifiedListener(category, status);
+                }
+            });
         }
     }
 
@@ -110,12 +107,14 @@ public class DataManager {
 
     //Data modifiers
     static void setCategory(Category category, List<Article> articles) {
-        clearCategory(category);
+        clearCategory(category);//remove old category's articles
         for (Article article : articles) {
-            Long articleID = article.getArticleExtra().getId();//Long required for keys comparison
+            Long articleID = article.getArticleExtra().getId();
             if (uniqueArticles.containsKey(articleID)) {
+                //If such article is exist yes
                 uniqueArticles.get(articleID).addCategory(category);
             } else {
+                //If new article was received
                 uniqueArticles.put(articleID, article);
             }
             pages[category.ordinal()].add(articleID);
@@ -123,7 +122,7 @@ public class DataManager {
     }
 
     static void setFavorite(List<Article> articles) {
-        clearCategory(Category.FAVORITE);
+        clearCategory(Category.FAVORITE);//remove old Favorite articles information
         for (Article article : articles) {
             Long articleID = article.getArticleExtra().getId();//Long required for keys comparison
             if (uniqueArticles.containsKey(articleID)) {
@@ -131,7 +130,7 @@ public class DataManager {
                 oldArticle.addCategory(Category.FAVORITE);
                 //will add category FAVORITE & local path to files to old article
                 oldArticle.updateData(article);
-            }else {
+            } else {
                 uniqueArticles.put(articleID, article);
             }
             pages[Category.FAVORITE.ordinal()].add(articleID);
@@ -175,29 +174,31 @@ public class DataManager {
 
 
     //Files operations
-    public static void addToFavorite(Long articleID) {
+    public static void addToFavorite(Long articleID) {//Adding article to Favorite category
         final Article article = getArticle(articleID);
-        article.addCategory(Category.LOADING);
+        article.addCategory(Category.LOADING);//Set category, which indicates downloading
         new Thread(new Runnable() {
             @Override
             public void run() {
                 if (DeviceStorageDataProvider.saveArticle(article)) {
+                    //Saving succeed
                     article.addCategory(Category.FAVORITE);
                     pages[Category.FAVORITE.ordinal()].add(article.getArticleExtra().getId());
                     notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_SAVED);
                 } else {
+                    //Saving failed
                     notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_SAVING_FAILED);
                 }
-                article.removeCategory(Category.LOADING);
+                article.removeCategory(Category.LOADING);//Downloading has finished
             }
         }).start();
     }
 
     public static void tryToRemoveFromFavorite(Context context, final Long articleID) {
-        //Відображаємо вікно підтвердження видалення.
+        //Request remove confirmation
         AlertDialog.Builder alertDialog = new AlertDialog.Builder(context);
-        alertDialog.setTitle(alertTitle);  // заголовок
-        alertDialog.setMessage(alertMessage); // повідомлення
+        alertDialog.setTitle(alertTitle);
+        alertDialog.setMessage(alertMessage);
         alertDialog.setPositiveButton(alertBtn1, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int arg1) {
                 removeFromFavorite(articleID);
@@ -208,60 +209,68 @@ public class DataManager {
             public void onClick(DialogInterface dialog, int which) {
                 notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_REMOVING_CANCELED);
             }
-        });//нічого не робимо
+        });
         alertDialog.setCancelable(true);
         alertDialog.show();
     }
 
 
-    private static void removeFromFavorite(final Long articleID){
+    private static void removeFromFavorite(final Long articleID) {//Removing article from Favorite
         final Article article = getArticle(articleID);
 
         new Thread(new Runnable() {
             @Override
             public void run() {
+                //Remove article from local storage and it's information from DB
                 if (DeviceStorageDataProvider.deleteArticle(article)) {
+                    //Removing succeed
                     removeArticle(Category.FAVORITE, article);
                     notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_REMOVED);
                 } else {
+                    //Removing failed
                     notifyOnDataModifiedListener(Category.FAVORITE, DataModifiedListener.Status.ARTICLE_REMOVING_FAILED);
                 }
             }
         }).start();
     }
 
-    private static void clearCategory(Category category){
+    private static void clearCategory(Category category) {//Remove all articles from category
         Iterator<Long> iterator = pages[category.ordinal()].iterator();
-        while(iterator.hasNext()){
+        while (iterator.hasNext()) {
             Long id = iterator.next();
             Article article = uniqueArticles.get(id);
             removeArticle(category, article, iterator);
         }
     }
 
-    private static void removeArticle(Category category, Article article, Iterator<Long> iterator){
+    //Remove article via iterator
+    private static void removeArticle(Category category, Article article, Iterator<Long> iterator) {
+        //Remove article from specified category
         iterator.remove();
         article.removeCategory(category);
-        if(article.getCategoriesCount() == 0){
+        //Remove article from app, if no category has refer to it
+        if (article.getCategoriesCount() == 0) {
             uniqueArticles.remove(article.getArticleExtra().getId());
         }
     }
 
-    private static void removeArticle(Category category, Article article){
+    //Remove article directly
+    private static void removeArticle(Category category, Article article) {
+        //Remove article from specified category(and from app, if no category has refer to it)
         pages[category.ordinal()].remove(article.getArticleExtra().getId());
         article.removeCategory(category);
-        if(article.getCategoriesCount() == 0){
+        //Remove article from app, if no category has refer to it
+        if (article.getCategoriesCount() == 0) {
             uniqueArticles.remove(article.getArticleExtra().getId());
         }
     }
-
 
 
     //Inners
     public interface DataModifiedListener {
         void onDataModified(Status status);
 
-        enum Status{
+        enum Status {
             CATEGORY_LOADED,
             CATEGORY_LOADING_FAILED,
             ARTICLE_SAVED,

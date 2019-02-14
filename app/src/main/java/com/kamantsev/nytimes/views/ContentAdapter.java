@@ -3,8 +3,6 @@ package com.kamantsev.nytimes.views;
 import android.content.Context;
 import android.content.Intent;
 import android.support.annotation.NonNull;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -20,7 +18,6 @@ import com.kamantsev.nytimes.models.request_model.MediaMetadata;
 
 import java.util.List;
 
-import static com.kamantsev.nytimes.controllers.DataManager.getContext;
 
 class ContentAdapter extends RecyclerView.Adapter<ContentAdapter.ContentHolder> {
 
@@ -65,9 +62,8 @@ class ContentAdapter extends RecyclerView.Adapter<ContentAdapter.ContentHolder> 
             itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Context context = getContext();
-                    Intent intent = ArticleActivity.getIntent(context,
-                            DataManager.getArticle(articleID).getArticleExtra().getId());
+                    Context context = DataManager.getContext();
+                    Intent intent = ArticleActivity.getIntent(context, articleID);
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(intent);
                 }
@@ -83,6 +79,7 @@ class ContentAdapter extends RecyclerView.Adapter<ContentAdapter.ContentHolder> 
         private void initialize(int index){
             Article article = DataManager.getArticle(category, index);
             articleID = article.getArticleExtra().getId();
+
             tvTitle.setText(article.getArticleExtra().getTitle());
             tvPreview.setText(article.getArticleExtra().getAbstract());
             List<MediaMetadata> mmd=article.getArticleExtra().getMedia().get(0).getMediaMetadata();

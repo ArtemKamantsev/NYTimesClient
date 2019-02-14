@@ -7,10 +7,8 @@ import com.kamantsev.nytimes.models.request_model.ResultViewed;
 
 import retrofit2.Call;
 import retrofit2.http.GET;
-import retrofit2.http.Path;
 import retrofit2.http.Query;
 
-//Шаблони запитів до серверу
 public interface NYTAPI {
     @GET("emailed/30.json")
     Call<NYTResponse<ResultEmailed>> getMostEmailed(@Query("api-key") String apiKey);

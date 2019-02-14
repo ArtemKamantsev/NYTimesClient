@@ -5,5 +5,5 @@ public enum Category {
     SHARED,
     VIEWED,
     FAVORITE,
-    LOADING//temporary category, while article is downloading
+    LOADING//articles belong to this category only during downloading
 }

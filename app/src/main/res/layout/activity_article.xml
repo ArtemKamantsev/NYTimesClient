@@ -14,8 +14,7 @@
             android:id="@+id/article_toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
-            app:popupTheme="@style/ArticlePopupTheme" />
+            app:popupTheme="@style/ArticleAppBar" />
     </android.support.design.widget.AppBarLayout>
 
     <WebView

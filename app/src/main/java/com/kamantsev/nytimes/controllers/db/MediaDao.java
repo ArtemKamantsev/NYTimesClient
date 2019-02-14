@@ -19,10 +19,4 @@ public interface MediaDao {
 
     @Insert
     Long insert(Media media);
-
-    @Update(onConflict = OnConflictStrategy.REPLACE)
-    void update(Media... media);
-
-    @Delete
-    void delete(Media... media);
 }

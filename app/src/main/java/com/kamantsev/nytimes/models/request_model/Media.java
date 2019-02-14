@@ -1,4 +1,3 @@
-
 package com.kamantsev.nytimes.models.request_model;
 
 import android.arch.persistence.room.Entity;
@@ -6,9 +5,10 @@ import android.arch.persistence.room.ForeignKey;
 import android.arch.persistence.room.Ignore;
 import android.arch.persistence.room.PrimaryKey;
 
-import java.util.List;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
+
+import java.util.List;
 
 import static android.arch.persistence.room.ForeignKey.CASCADE;
 
@@ -21,7 +21,7 @@ public class Media {
 
     @PrimaryKey(autoGenerate = true)
     private Long id;
-    private Long resultId;
+    private Long resultId;//parent entity's id
 
     @SerializedName("type")
     @Expose
@@ -44,7 +44,7 @@ public class Media {
     private List<MediaMetadata> mediaMetadata = null;
 
 
-    public void bindTo(long resultId){
+    public void setParentEntity(long resultId){
         this.resultId = resultId;
     }
 

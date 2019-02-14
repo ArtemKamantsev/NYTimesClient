@@ -12,7 +12,7 @@ import java.util.List;
 
 
 @Entity(tableName="result")
-public class AbstractResult {
+public class AbstractResult {//Represent common fields of objects of NYTResponse's field 'results'
 
     @PrimaryKey
     @SerializedName("id")
@@ -51,19 +51,9 @@ public class AbstractResult {
     @SerializedName("asset_id")
     @Expose
     private Long assetId;
-    /*@SerializedName("des_facet")
-    @Expose
-    private List<String> desFacet = null;
-    @SerializedName("org_facet")
-    @Expose
-    private List<String> orgFacet = null;
-    @SerializedName("per_facet")
-    @Expose
-    private List<String> perFacet = null;
-    @SerializedName("geo_facet")
-    @Expose
-    private String geoFacet;*/
-    //TODO change this solution in future (problem was: in json can be string[] or "")
+
+    //Following group of fields has type 'Object' because JSON's value of each of these fields
+    //could be string massive(["...",...,"..."]) or empty string("")
     @SerializedName("des_facet")
     @Expose
     private Object desFacet;
@@ -76,7 +66,9 @@ public class AbstractResult {
     @SerializedName("geo_facet")
     @Expose
     private Object geoFacet;
-    @Ignore
+
+
+    @Ignore//field serializes in separate table manually
     @SerializedName("media")
     @Expose
     private List<Media> media = null;
@@ -84,9 +76,11 @@ public class AbstractResult {
     @Expose
     private String uri;
 
-    private String path;
+    //field isn't present in JSON model.
+    private String path;//Represent a path to article' .html page in local storage, if it exists
 
     public String getPath() {
+        //return a path to article' .html page in local storage, if it exists
         return path == null? url: path;
     }
 

@@ -1,4 +1,3 @@
-
 package com.kamantsev.nytimes.models.request_model;
 
 import android.arch.persistence.room.Entity;
@@ -20,7 +19,7 @@ public class MediaMetadata {
 
     @PrimaryKey(autoGenerate = true)
     private Long id;
-    private Long mediaId;
+    private Long mediaId;//parent entity's id
 
     @SerializedName("url")
     @Expose
@@ -35,7 +34,7 @@ public class MediaMetadata {
     @Expose
     private Integer width;
 
-    public void bindTo(long mediaId){
+    public void setParentEntity(long mediaId){
         this.mediaId = mediaId;
     }
 
